@@ -1,0 +1,5 @@
+# VIM swap files
+.*.swp
+
+# Log output
+/.logs/
