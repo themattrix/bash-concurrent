@@ -1,8 +1,5 @@
 concurrent() (
-    # Requires:
-    # - bash >= 3
-    # - sed
-    # - tput
+    # Requires: bash (v3 or higher), sed, tput, date, ls
 
     set -e -o pipefail  # Exit on failed command
     shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
@@ -13,9 +10,19 @@ concurrent() (
     txtblu='\e[0;34m' # Blue
     txtrst='\e[0m'    # Text Reset
 
+    pending_msg="        "
+    running_msg=" ${txtblu}    ->${txtrst} "
+    success_msg=" ${txtgrn}  OK  ${txtrst} "
+    failure_msg=" ${txtred}FAILED${txtrst} "
+    skipped_msg=" ${txtylw} SKIP ${txtrst} "
+
     error() {
         echo -e "[${txtred}ERROR${txtrst}] ${1}" 1>&2
         exit 1
+    }
+
+    indent() {
+        sed 's/^/    /' "${@}"
     }
 
     name_index() {
@@ -27,7 +34,7 @@ concurrent() (
                 return
             fi
         done
-        error "Failed to find section named '${name}'"
+        error "Failed to find task named '${name}'"
     }
 
     start_command() {
@@ -59,9 +66,9 @@ concurrent() (
         local requires
         local wait_array="waits_${before}[@]"
         for requires in "${!wait_array}"; do
-            if [ -z "${codes[${requires}]}" ]; then
+            if [[ -z "${codes[${requires}]}" ]]; then
                 return 1
-            elif [ "${codes[${requires}]}" != "0" ]; then
+            elif [[ "${codes[${requires}]}" != "0" ]]; then
                 skip_command "${before}" "${names[${requires}]}"
                 return 1
             fi
@@ -74,7 +81,7 @@ concurrent() (
         trap 'rm -rf "${status_dir}"' EXIT
         local i
         for (( i = 0; i < commands; i++ )); do
-            echo "         ${names[${i}]}"
+            echo -e "${pending_msg}${names[${i}]}"
         done
         tput cuu "${commands}"
         tput sc
@@ -110,15 +117,11 @@ concurrent() (
         local index=${1}
         local code=${2}
         tput rc
-        [ "${index}" -eq 0 ] || tput cud "${index}"
-        if [ "${code}" == "running" ]; then
-            echo -en " ${txtblu}  >>  ${txtrst} "
-        elif [ "${code}" == "skip" ]; then
-            echo -en " ${txtylw} SKIP ${txtrst} "
-        elif [ "${code}" -eq 0 ]; then
-            echo -en " ${txtgrn}  OK  ${txtrst} "
-        else
-            echo -en " ${txtred}FAILED${txtrst} "
+        [[ "${index}" -eq 0 ]] || tput cud "${index}"
+        if   [[ "${code}" == "running" ]]; then echo -en "${running_msg}"
+        elif [[ "${code}" == "skip"    ]]; then echo -en "${skipped_msg}"
+        elif [[ "${code}" == "0"       ]]; then echo -en "${success_msg}"
+        else                                    echo -en "${failure_msg}"
         fi
         tput rc
     }
@@ -129,8 +132,9 @@ concurrent() (
         code=${filename##*.}
         codes["${index}"]=${code}
         draw_status "${index}" "${code}"
+        cp "${filename}" "${log_dir}/${index}. ${names[${index}]} (${code}).log"
         mv "${filename}" "${index}"
-        if [ "${code}" != "0" ]; then
+        if [[ "${code}" != "0" ]]; then
             final_status=1
         fi
     }
@@ -142,18 +146,15 @@ concurrent() (
             if [[ "${codes[${i}]}" != '0' ]]; then
                 echo
                 echo "['${names[${i}]}' failed with exit status ${codes[${i}]}]"
-                sed 's/^/   /' "${i}"
+                indent "${i}"
             fi
         done
-    }
 
-    populate_log_dir() {
-        cd "${status_dir}"
-        mkdir -p "${orig_pwd}/.logs"
-        local i
-        for (( i = 0; i < commands; i++ )); do
-            mv "${i}" "${orig_pwd}/.logs/${i}. ${names[${i}]} (${codes[${i}]}).log"
-        done
+        if [[ "${final_status}" != "0" ]]; then
+            echo
+            echo "Logs for all tasks can be found in '${log_dir}/':"
+            (cd "${log_dir}" && ls -1d *) | indent
+        fi
     }
 
     names=()        # command names by index
@@ -164,9 +165,9 @@ concurrent() (
 
     while (( $# )); do
         if [[ "${1}" == '-' ]]; then
-            shift; (( $# )) || error "expected section name after '-'"
+            shift; (( $# )) || error "expected task name after '-'"
             names+=("${1}")
-            shift; (( $# )) || error "expected command after section name"
+            shift; (( $# )) || error "expected command after task name"
             args=()
             while (( $# )) && [[ "${1}" != -* ]]; do
                 args+=("${1}")
@@ -175,13 +176,18 @@ concurrent() (
             declare -a "command_${commands}=(\"\${args[@]}\")"
             (( commands++ )) || :
         elif [[ "${1}" == "--require" ]]; then
-            shift; (( $# )) || error "expected section name after '--require'"
-            require=$(name_index "${1}")
-            shift; (( $# )) || error "expected '--before' after requirement"
+            require=()
+            while (( $# )) && [[ "${1}" == "--require" ]]; do
+                shift; (( $# )) || error "expected task name after '--require'"
+                require=(${require[@]} $(name_index "${1}"))
+                shift
+            done
             while (( $# )) && [[ "${1}" == "--before" ]]; do
-                shift; (( $# )) || error "expected section name after '--before'"
+                shift; (( $# )) || error "expected task name after '--before'"
                 before=$(name_index "${1}")
-                declare -a "waits_${before}=(\${waits_${before}[@]} ${require})"
+                for r in "${require[@]}"; do
+                    declare -a "waits_${before}=(\${waits_${before}[@]} ${r})"
+                done
                 shift
             done
         else
@@ -189,12 +195,19 @@ concurrent() (
         fi
     done
 
-    orig_pwd=${PWD}
+    log_dir="${PWD}/.logs/$(date +'%F@%T')"
+    mkdir -p "${log_dir}"
+
+    # Disable local echo so the user can't mess up the pretty display.
+    stty -echo
 
     start_all
     wait_for_all
     print_failures
-    populate_log_dir
+
+    # Enable local echo so user can type again. (Simply exiting the subshell
+    # is not sufficient to reset this, which is surprising.)
+    stty echo
 
     exit ${final_status}
 )

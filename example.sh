@@ -31,11 +31,7 @@ success() {
         --before  "Pulling remaining docker images"
 
         --require "Populating VM with world data from ${data_source}"
-        --before  "Launching services"
-
         --require "Spigot: Building JAR"
-        --before  "Launching services"
-
         --require "Pulling remaining docker images"
         --before  "Launching services"
     )
@@ -72,11 +68,7 @@ failure() {
         --before  "Pulling remaining docker images"
 
         --require "Populating VM with world data from ${data_source}"
-        --before  "Launching services"
-
         --require "Spigot: Building JAR"
-        --before  "Launching services"
-
         --require "Pulling remaining docker images"
         --before  "Launching services"
     )
