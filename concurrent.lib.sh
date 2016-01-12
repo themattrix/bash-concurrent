@@ -1,5 +1,5 @@
 concurrent() (
-    # Requires: bash (v3 or higher), sed, tput, date, ls
+    # Requires: bash v4, sed, tput, date, ls, mktemp
 
     set -e -o pipefail  # Exit on failed command
     shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
@@ -77,7 +77,7 @@ concurrent() (
     }
 
     start_all() {
-        status_dir=$(mktemp -d)
+        status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXXXXXXX")
         trap 'rm -rf "${status_dir}"' EXIT
         local i
         for (( i = 0; i < commands; i++ )); do
