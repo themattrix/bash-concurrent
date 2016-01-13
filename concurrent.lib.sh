@@ -223,9 +223,7 @@ concurrent() (
         done
 
         if [[ "${final_status}" != "0" ]]; then
-            echo
-            echo "Logs for all tasks can be found in '${log_dir}/':"
-            (cd "${log_dir}" && ls -1d *) | indent
+            printf '\nLogs for all tasks can be found in:\n    %s\n' "${log_dir}/"
         fi
     }
 
