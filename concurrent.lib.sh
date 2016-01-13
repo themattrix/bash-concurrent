@@ -1,5 +1,57 @@
 concurrent() (
-    # Requires: bash v4, sed, tput, date, ls, mktemp
+    version='concurrent 1.0.0'
+
+    usage="concurrent - Display the statuses of concurrent and inter-dependant tasks.
+
+        Usage:
+          concurrent (- TASK COMMAND [ARGS...])... [(--require TASK)... (--before TASK)...]...
+          concurrent -h | --help
+          concurrent --version
+
+        Options:
+          -h --help                 Show this help.
+          --version                 Show version.
+          - TASK COMMAND [ARGS...]  Define a task named TASK for running COMMAND with ARGS.
+          --require TASK            Require a TASK to complete successfully...
+          --before TASK             ...before another TASK.
+
+        Failed Tasks:
+          If a task fails, all dependent tasks (and their dependent tasks, and so on) are
+          immediately marked 'SKIP'. The status and output of all failed and skipped tasks
+          are displayed at the end. The exit status will be 1.
+
+        Examples:
+          # Run three tasks concurrently.
+          concurrent \\
+              - 'My long task'   sleep 10 \\
+              - 'My medium task' sleep 5  \\
+              - 'My short task'  sleep 1
+
+          # Start the medium task *after* the short task succeeds.
+          concurrent \\
+              - 'My long task'   sleep 10 \\
+              - 'My medium task' sleep 5  \\
+              - 'My short task'  sleep 1  \\
+              --require 'My short task'   \\
+              --before  'My medium task'
+
+          # Start the short task after *both* other tasks succeed.
+              ...
+              --require 'My long task'    \\
+              --require 'My medium task'  \\
+              --before  'My short task'
+
+          # Start the medium task *and* the long task after the short task succeeds.
+              ...
+              --require 'My short task'   \\
+              --before  'My medium task'  \\
+              --before  'My long task'
+
+        Requirements:
+          bash v4, sed, tput, date, ls, mktemp
+
+        Version:
+          ${version}"
 
     set -e -o pipefail  # Exit on failed command
     shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
@@ -10,6 +62,22 @@ concurrent() (
     txtblu='\e[0;34m' # Blue
     txtrst='\e[0m'    # Text Reset
 
+    usage() {
+       sed 's/^        //' <<< "${usage}"
+       exit 0
+    }
+
+    version() {
+       echo "${version}"
+       exit 0
+    }
+
+    if [[ -z "${1}" ]] || [[ "${1}" == '-h' ]] || [[ "${1}" == '--help' ]]; then
+        usage
+    elif [[ "${1}" == '--version' ]]; then
+        version
+    fi
+
     pending_msg="        "
     running_msg=" ${txtblu}    ->${txtrst} "
     success_msg=" ${txtgrn}  OK  ${txtrst} "
@@ -17,7 +85,7 @@ concurrent() (
     skipped_msg=" ${txtylw} SKIP ${txtrst} "
 
     error() {
-        echo -e "[${txtred}ERROR${txtrst}] ${1}" 1>&2
+        echo "ERROR (concurrent): ${1}" 1>&2
         exit 1
     }
 
@@ -97,13 +165,17 @@ concurrent() (
         done
     }
 
+    new_done_tasks() {
+        compgen -G '*.done.*' > /dev/null
+    }
+
     wait_for_all() {
         cd "${status_dir}"
         local i
         local f
         for (( i = 0; i < commands; i++ )); do
             wait -n || :
-            while compgen -G '*.done.*' > /dev/null; do
+            while new_done_tasks; do
                 for f in *.done.*; do
                     handle_done "${f}"
                 done
@@ -191,7 +263,7 @@ concurrent() (
                 shift
             done
         else
-            shift
+            error "unexpected argument '${1}'"
         fi
     done
 
