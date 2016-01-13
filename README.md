@@ -1,6 +1,6 @@
 # Concurrent
 
-A Bash function to run tasks in parallel and display pretty output as they complete or fail.
+A Bash function to run tasks in parallel and display pretty output as they complete.
 
 [![asciicast](https://asciinema.org/a/33545.png)](https://asciinema.org/a/33545)
 
