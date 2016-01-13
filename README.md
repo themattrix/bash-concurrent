@@ -60,4 +60,3 @@ concurrent \\
 - date
 - ls
 - mktemp
-```
