@@ -2,7 +2,7 @@
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
-[![asciicast](https://asciinema.org/a/33545.png)](https://asciinema.org/a/33545)
+[![asciicast](https://asciinema.org/a/33615.png)](https://asciinema.org/a/33615)
 
 
 ## Examples
@@ -52,6 +52,15 @@ concurrent \\
 ```
 
 Take a look at [`demo.sh`](demo.sh) for more involved examples.
+
+## Failure Demo
+
+[![asciicast](https://asciinema.org/a/33617.png)](https://asciinema.org/a/33617)
+
+
+## Interrupted Demo
+
+[![asciicast](https://asciinema.org/a/33618.png)](https://asciinema.org/a/33618)
 
 
 ## Requirements
