@@ -1,7 +1,6 @@
 # Concurrent
 
-Run and display the statuses of concurrent and inter-dependant tasks.
-Since the script is pure bash, a task can be any command - including shell functions.
+A Bash function to run tasks in parallel and display pretty output as they complete or fail.
 
 [![asciicast](https://asciinema.org/a/33545.png)](https://asciinema.org/a/33545)
 
@@ -51,6 +50,9 @@ concurrent \\
     --before  'My medium task'  \\
     --before  'My long task'
 ```
+
+Take a look at [`demo.sh`](demo.sh) for more involved examples.
+
 
 ## Requirements
 
