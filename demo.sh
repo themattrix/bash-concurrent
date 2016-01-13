@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
+set -e -o pipefail
+
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/concurrent.lib.sh"
 
 success() {
-    echo "[SUCCESS EXAMPLE]"
-
     local provider=digitalocean
     local data_source=dropbox
 
@@ -40,8 +40,6 @@ success() {
 }
 
 failure() {
-    echo "[FAILURE EXAMPLE]"
-
     local provider=digitalocean
     local data_source=dropbox
 
@@ -88,10 +86,18 @@ my_sleep() {
 }
 
 main() {
-    echo
-    success
-    echo
-    failure
+    if [[ "${1}" == "success" ]]; then
+        success
+    elif [[ "${1}" == "failure" ]]; then
+        failure
+    else
+        echo
+        echo "[SUCCESS EXAMPLE]"
+        success
+        echo
+        echo "[FAILURE EXAMPLE]"
+        failure
+    fi
 }
 
-main
+main "${@}"

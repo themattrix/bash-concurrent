@@ -1,5 +1,16 @@
 concurrent() (
-    version='concurrent 1.0.0'
+    #
+    # Bash Settings
+    #
+
+    set -e -o pipefail  # Exit on failed command
+    shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
+
+    #
+    # Help and Usage
+    #
+
+    version='concurrent 1.1.0'
 
     usage="concurrent - Run and display the statuses of concurrent and inter-dependant tasks.
 
@@ -48,49 +59,45 @@ concurrent() (
               --before  'My long task'
 
         Requirements:
-          bash v4, sed, tput, date, ls, mktemp
+          bash v4, sed, tput, date, ls, mktemp, kill
 
         Version:
           ${version}"
 
-    set -e -o pipefail  # Exit on failed command
-    shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
-
-    txtred='\e[0;31m' # Red
-    txtgrn='\e[0;32m' # Green
-    txtylw='\e[0;33m' # Yellow
-    txtblu='\e[0;34m' # Blue
-    txtrst='\e[0m'    # Text Reset
-
-    usage() {
+    display_usage_and_exit() {
        sed 's/^        //' <<< "${usage}"
        exit 0
     }
 
-    version() {
+    display_version_and_exit() {
        echo "${version}"
        exit 0
     }
 
     if [[ -z "${1}" ]] || [[ "${1}" == '-h' ]] || [[ "${1}" == '--help' ]]; then
-        usage
+        display_usage_and_exit
     elif [[ "${1}" == '--version' ]]; then
-        version
+        display_version_and_exit
     fi
 
-    pending_msg="        "
-    running_msg=" ${txtblu}    ->${txtrst} "
-    success_msg=" ${txtgrn}  OK  ${txtrst} "
-    failure_msg=" ${txtred}FAILED${txtrst} "
-    skipped_msg=" ${txtylw} SKIP ${txtrst} "
+    # No longer need these up in our business.
+    unset -f display_usage_and_exit display_version_and_exit
+    unset usage version
 
-    error() {
-        echo "ERROR (concurrent): ${1}" 1>&2
-        exit 1
+    #
+    # Task Management
+    #
+
+    is_task_started() {
+        [[ "${started[${1}]}" == "true" ]]
     }
 
-    indent() {
-        sed 's/^/    /' "${@}"
+    is_task_done() {
+        [[ -n "${codes[${1}]}" ]]
+    }
+
+    is_task_running() {
+        is_task_started "${1}" && ! is_task_done "${1}"
     }
 
     name_index() {
@@ -105,100 +112,130 @@ concurrent() (
         error "Failed to find task named '${name}'"
     }
 
-    start_command() {
-        {
-            array_name="command_${1}[@]"
-            set +e
-            "${!array_name}" &> "${status_dir}/${1}"
-            code=$?
-            mv "${status_dir}/${1}"{,.done.${code}}
-        } &
-        start["${1}"]=true
-        draw_status "${1}" running
-    }
+    is_task_allowed_to_start() {
+        # A task is allowed to start if:
+        #   1. it hasn't already started, and if
+        #   2. all prereq tasks have succeeded.
+        # If any prereqs have failed or have been skipped, then this task will
+        # be skipped.
 
-    skip_command() {
-        start["${1}"]=true
-        echo "[SKIPPED] Prereq '${2}' failed or was skipped" > "${status_dir}/${1}.done.skip"
-    }
-
-    command_started() {
-        [[ "${start[${1}]}" == "true" ]]
-    }
-
-    command_may_start() {
-        local before=${1}
-        if command_started "${before}"; then
+        local task=${1}
+        if is_task_started "${task}"; then
             return 1  # cannot start again
         fi
+
         local requires
-        local wait_array="waits_${before}[@]"
-        for requires in "${!wait_array}"; do
+        local prereqs="prereqs_${task}[@]"
+        for requires in "${!prereqs}"; do
             if [[ -z "${codes[${requires}]}" ]]; then
                 return 1
             elif [[ "${codes[${requires}]}" != "0" ]]; then
-                skip_command "${before}" "${names[${requires}]}"
+                skip_task "${task}" "${names[${requires}]}"
                 return 1
             fi
         done
-        return 0
+
+        # All prereqs succeeded! This task can be started.
     }
 
-    start_all() {
-        status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXXXXXXX")
+    mark_task_with_code() {
+        local task=${1}
+        local code=${2}
+        mv "${status_dir}/${task}"{,.done.${code}}
+    }
+
+    task_runner() (
+        task=${1}
+        array_name="command_${task}[@]"
+
+        sigint_handler() {
+            mark_task_with_code "${task}" int
+            trap INT      # reset the signal handler
+            kill -INT $$  # re-raise the signal
+            exit 255      # don't continue this task
+        }
+
+        trap sigint_handler INT
+
+        set +e    # a failure of the command should not exit the task
+        "${!array_name}" &> "${status_dir}/${task}"; code=$?
+        set -e    # but other failures should
+        trap INT  # reset the signal handler
+
+        mark_task_with_code "${task}" "${code}"
+    )
+
+    start_task() {
+        local task=${1}
+        task_runner "${task}" &
+        pids["${task}"]=$!
+        started["${task}"]=true
+        draw_status "${task}" running
+    }
+
+    start_all_tasks() {
+        status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXX")
         trap 'rm -rf "${status_dir}"' EXIT
         local i
-        for (( i = 0; i < commands; i++ )); do
-            echo -e "${pending_msg}${names[${i}]}"
+        for (( i = 0; i < task_count; i++ )); do
+            echo "        ${names[${i}]}"
         done
-        tput cuu "${commands}"
-        tput sc
-        start_allowed
+        move_cursor_to_first_task
+        start_allowed_tasks
     }
 
-    start_allowed() {
+    stop_task() {
+        started["${1}"]=true
+        echo "[INTERRUPTED]" >> "${status_dir}/${1}"
+        kill -INT "${pids[${1}]}"
+    }
+
+    stop_all_tasks() {
         local i
-        for (( i = 0; i < commands; i++ )); do
-            if command_may_start "${i}"; then
-                start_command "${i}"
+        for (( i = 0; i < task_count; i++ )); do
+            if is_task_running "${i}"; then
+                stop_task "${i}"
             fi
         done
     }
 
-    new_done_tasks() {
+    skip_task() {
+        started["${1}"]=true
+        echo "[SKIPPED] Prereq '${2}' failed or was skipped" > "${status_dir}/${1}.done.skip"
+    }
+
+    start_allowed_tasks() {
+        local i
+        for (( i = 0; i < task_count; i++ )); do
+            if is_task_allowed_to_start "${i}"; then
+                start_task "${i}"
+            fi
+        done
+    }
+
+    has_unseen_done_tasks() {
         compgen -G '*.done.*' > /dev/null
     }
 
-    wait_for_all() {
+    wait_for_all_tasks() {
         cd "${status_dir}"
         local i
         local f
-        for (( i = 0; i < commands; i++ )); do
+        for (( i = 0; i < task_count; i++ )); do
             wait -n || :
-            while new_done_tasks; do
+            while has_unseen_done_tasks; do
                 for f in *.done.*; do
-                    handle_done "${f}"
+                    handle_done_task "${f}"
                 done
-                start_allowed
+                start_allowed_tasks
             done
         done
-        tput cud "${commands}"
+        move_cursor_below_tasks
+        all_done=true
+        print_failures
     }
 
-    draw_status() {
-        local index=${1}
-        local code=${2}
-        tput rc
-        [[ "${index}" -eq 0 ]] || tput cud "${index}"
-        if   [[ "${code}" == "running" ]]; then echo -en "${running_msg}"
-        elif [[ "${code}" == "skip"    ]]; then echo -en "${skipped_msg}"
-        elif [[ "${code}" == "0"       ]]; then echo -en "${success_msg}"
-        else                                    echo -en "${failure_msg}"
-        fi
-        tput rc
-    }
-
-    handle_done() {
+    handle_done_task() {
         local filename=${1}
         index=${filename%%.*}
         code=${filename##*.}
@@ -211,10 +248,48 @@ concurrent() (
         fi
     }
 
+    #
+    # Status Updates
+    #
+
+    txtred='\e[0;31m' # Red
+    txtgrn='\e[0;32m' # Green
+    txtylw='\e[0;33m' # Yellow
+    txtblu='\e[0;34m' # Blue
+    txtrst='\e[0m'    # Text Reset
+
+    indent() {
+        sed 's/^/    /' "${@}"
+    }
+
+    move_cursor_to_first_task() {
+        tput cuu "${task_count}"
+        tput sc
+    }
+
+    move_cursor_below_tasks() {
+        tput cud "${task_count}"
+        tput sc
+    }
+
+    draw_status() {
+        local index=${1}
+        local code=${2}
+        tput rc
+        [[ "${index}" -eq 0 ]] || tput cud "${index}"
+        if   [[ "${code}" == "running" ]]; then echo -en " ${txtblu}    =>${txtrst} "
+        elif [[ "${code}" == "int"     ]]; then echo -en " ${txtred}SIGINT${txtrst} "
+        elif [[ "${code}" == "skip"    ]]; then echo -en " ${txtylw} SKIP ${txtrst} "
+        elif [[ "${code}" == "0"       ]]; then echo -en " ${txtgrn}  OK  ${txtrst} "
+        else                                    echo -en " ${txtred}FAILED${txtrst} "
+        fi
+        tput rc
+    }
+
     print_failures() {
         cd "${status_dir}"
         local i
-        for (( i = 0; i < commands; i++ )); do
+        for (( i = 0; i < task_count; i++ )); do
             if [[ "${codes[${i}]}" != '0' ]]; then
                 echo
                 echo "['${names[${i}]}' failed with exit status ${codes[${i}]}]"
@@ -227,11 +302,31 @@ concurrent() (
         fi
     }
 
-    names=()        # command names by index
-    codes=()        # command exit codes by index
-    start=()        # command start status by index
-    commands=0      # total number of commands
-    final_status=0  # 0 if all commands succeeded, 1 otherwise
+    #
+    # Argument Parsing
+    #
+
+    error() {
+        echo "ERROR (concurrent): ${1}" 1>&2
+        exit 1
+    }
+
+    names=()        # task names by index
+    codes=()        # task exit codes (unset, 0-255, 'skip', or 'int') by index
+    started=()      # task started status (unset or 'true') by index
+    pids=()         # command pids by index
+    task_count=0    # total number of tasks
+    all_done=false  # false until all tasks complete or are skipped, then true
+    final_status=0  # 0 if all tasks succeeded, 1 otherwise
+
+    # Arrays of command arguments by task index <T>:
+    #   command_<T>=(...)
+    #
+    # Arrays of prerequisite task indices by task index <T>:
+    #   prereqs_<T>=(...)
+    #
+    # These are dynamically created during argument parsing since bash doesn't
+    # have a concept of nested lists.
 
     while (( $# )); do
         if [[ "${1}" == '-' ]]; then
@@ -243,8 +338,8 @@ concurrent() (
                 args+=("${1}")
                 shift
             done
-            declare -a "command_${commands}=(\"\${args[@]}\")"
-            (( commands++ )) || :
+            declare -a "command_${task_count}=(\"\${args[@]}\")"
+            (( task_count++ )) || :
         elif [[ "${1}" == "--require" ]]; then
             require=()
             while (( $# )) && [[ "${1}" == "--require" ]]; do
@@ -256,7 +351,7 @@ concurrent() (
                 shift; (( $# )) || error "expected task name after '--before'"
                 before=$(name_index "${1}")
                 for r in "${require[@]}"; do
-                    declare -a "waits_${before}=(\${waits_${before}[@]} ${r})"
+                    declare -a "prereqs_${before}=(\${prereqs_${before}[@]} ${r})"
                 done
                 shift
             done
@@ -268,16 +363,28 @@ concurrent() (
     log_dir="${PWD}/.logs/$(date +'%F@%T')"
     mkdir -p "${log_dir}"
 
-    # Disable local echo so the user can't mess up the pretty display.
-    stty -echo
+    handle_sigint() {
+        if [[ "${all_done}" != "true" ]]; then
+            stop_all_tasks
+            wait_for_all_tasks
+        fi
+        stty echo &> /dev/null || :  # re-enable echo
+        trap INT                     # reset the trap
+        kill -INT $$                 # re-raise the signal
+        exit 255                     # don't resume the script
+    }
 
-    start_all
-    wait_for_all
-    print_failures
+    trap handle_sigint INT
+
+    # Disable local echo so the user can't mess up the pretty display.
+    stty -echo &> /dev/null || :
+
+    start_all_tasks
+    wait_for_all_tasks
 
     # Enable local echo so user can type again. (Simply exiting the subshell
     # is not sufficient to reset this, which is surprising.)
-    stty echo
+    stty echo &> /dev/null || :
 
     exit ${final_status}
 )
