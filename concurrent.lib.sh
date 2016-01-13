@@ -1,7 +1,7 @@
 concurrent() (
     version='concurrent 1.0.0'
 
-    usage="concurrent - Display the statuses of concurrent and inter-dependant tasks.
+    usage="concurrent - Run and display the statuses of concurrent and inter-dependant tasks.
 
         Usage:
           concurrent (- TASK COMMAND [ARGS...])... [(--require TASK)... (--before TASK)...]...

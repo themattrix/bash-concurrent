@@ -1,7 +1,7 @@
 # Concurrent
 
-Display the statuses of concurrent and inter-dependant tasks.
-The tasks can be any command, including shell functions.
+Run and display the statuses of concurrent and inter-dependant tasks.
+Since the script is pure bash, a task can be any command - including shell functions.
 
 [![asciicast](https://asciinema.org/a/33545.png)](https://asciinema.org/a/33545)
 
