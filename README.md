@@ -1,4 +1,4 @@
-# Concurrent ![version: 1.1.1](https://img.shields.io/badge/version-1.1.1-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
+# Concurrent ![version: 1.1.2](https://img.shields.io/badge/version-1.1.2-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -72,3 +72,5 @@ Take a look at [`demo.sh`](demo.sh) for more involved examples.
 - ls
 - mktemp
 - kill
+- mv
+- cp

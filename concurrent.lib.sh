@@ -10,7 +10,7 @@ concurrent() (
     # Help and Usage
     #
 
-    version='concurrent 1.1.1'
+    version='concurrent 1.1.2'
 
     usage="concurrent - Run and display the statuses of concurrent and inter-dependant tasks.
 
@@ -59,7 +59,7 @@ concurrent() (
               --before  'My long task'
 
         Requirements:
-          bash v4, sed, tput, date, ls, mktemp, kill
+          bash v4, sed, tput, date, ls, mktemp, kill, cp, mv
 
         Version:
           ${version}"
@@ -114,7 +114,7 @@ concurrent() (
 
     is_task_allowed_to_start() {
         # A task is allowed to start if:
-        #   1. it hasn't already started, and if
+        #   1. it has not already started, and if
         #   2. all prereq tasks have succeeded.
         # If any prereqs have failed or have been skipped, then this task will
         # be skipped.
@@ -146,7 +146,7 @@ concurrent() (
 
     task_runner() (
         task=${1}
-        array_name="command_${task}[@]"
+        command_args="command_${task}[@]"
 
         sigint_handler() {
             mark_task_with_code "${task}" int
@@ -158,7 +158,7 @@ concurrent() (
         trap sigint_handler INT
 
         set +e    # a failure of the command should not exit the task
-        "${!array_name}" &> "${status_dir}/${task}"; code=$?
+        "${!command_args}" &> "${status_dir}/${task}"; code=$?
         set -e    # but other failures should
         trap INT  # reset the signal handler
 
@@ -241,6 +241,7 @@ concurrent() (
         code=${filename##*.}
         codes["${index}"]=${code}
         draw_status "${index}" "${code}"
+        >> "${filename}"  # ensure file exists
         cp "${filename}" "${log_dir}/${index}. ${names[${index}]} (${code}).log"
         mv "${filename}" "${index}"
         if [[ "${code}" != "0" ]]; then
