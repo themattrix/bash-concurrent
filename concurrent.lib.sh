@@ -10,7 +10,7 @@ concurrent() (
     # Help and Usage
     #
 
-    version='concurrent 1.1.0'
+    version='concurrent 1.1.1'
 
     usage="concurrent - Run and display the statuses of concurrent and inter-dependant tasks.
 
@@ -334,7 +334,7 @@ concurrent() (
             names+=("${1}")
             shift; (( $# )) || error "expected command after task name"
             args=()
-            while (( $# )) && [[ "${1}" != -* ]]; do
+            while (( $# )) && [[ "${1}" != '-' ]] && [[ "${1}" != '--require' ]]; do
                 args+=("${1}")
                 shift
             done
