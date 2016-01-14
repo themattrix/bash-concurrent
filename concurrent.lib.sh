@@ -10,7 +10,7 @@ concurrent() (
     # Help and Usage
     #
 
-    version='concurrent 1.1.2'
+    version='concurrent 1.1.3'
 
     usage="concurrent - Run and display the statuses of concurrent and inter-dependant tasks.
 
@@ -141,7 +141,7 @@ concurrent() (
     mark_task_with_code() {
         local task=${1}
         local code=${2}
-        mv "${status_dir}/${task}"{,.done.${code}}
+        mv -- "${status_dir}/${task}"{,.done.${code}}
     }
 
     task_runner() (
@@ -242,8 +242,8 @@ concurrent() (
         codes["${index}"]=${code}
         draw_status "${index}" "${code}"
         >> "${filename}"  # ensure file exists
-        cp "${filename}" "${log_dir}/${index}. ${names[${index}]} (${code}).log"
-        mv "${filename}" "${index}"
+        cp -- "${filename}" "${log_dir}/${index}. ${names[${index}]//\//-} (${code}).log"
+        mv -- "${filename}" "${index}"
         if [[ "${code}" != "0" ]]; then
             final_status=1
         fi
