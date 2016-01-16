@@ -25,7 +25,7 @@ concurrent() (
     # Help and Usage
     #
 
-    version='concurrent 1.1.3'
+    version='concurrent 1.1.4'
 
     usage="concurrent - Run and display the statuses of concurrent and inter-dependant tasks.
 
