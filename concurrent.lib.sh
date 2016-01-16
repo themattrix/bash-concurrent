@@ -3,8 +3,23 @@ concurrent() (
     # Bash Settings
     #
 
-    set -e -o pipefail  # Exit on failed command
-    shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
+    readonly ORIG_SHELLOPTS=${SHELLOPTS}
+    readonly ORIG_BASHOPTS=${BASHOPTS}
+
+    set_our_shell_options() {
+        set -o errexit      # Exit on a failed command...
+        set -o pipefail     # ...even if that command is in a pipeline.
+        shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
+    }
+
+    set_original_shell_options() {
+        set_our_shell_options
+        [[ "${ORIG_SHELLOPTS}" == *errexit*  ]] || set +o errexit
+        [[ "${ORIG_SHELLOPTS}" == *pipefail* ]] || set +o pipefail
+        [[ "${ORIG_BASHOPTS}"  == *nullglob* ]] || shopt -u nullglob
+    }
+
+    set_our_shell_options
 
     #
     # Help and Usage
@@ -157,10 +172,14 @@ concurrent() (
 
         trap sigint_handler INT
 
-        set +e    # a failure of the command should not exit the task
-        "${!command_args}" &> "${status_dir}/${task}"; code=$?
-        set -e    # but other failures should
-        trap INT  # reset the signal handler
+        set +o errexit  # a failure of the command should not exit the task
+        (
+            set_original_shell_options
+            "${!command_args}" &> "${status_dir}/${task}"
+        )
+        code=$?
+        set -o errexit  # but other failures should
+        trap INT        # reset the signal handler
 
         mark_task_with_code "${task}" "${code}"
     )
