@@ -1,38 +1,9 @@
 concurrent() (
     #
-    # Settings
-    #
-
-    readonly ORIG_PWD=${PWD}
-    readonly ORIG_OLDPWD=${OLDPWD}
-    readonly ORIG_BASHOPTS=${BASHOPTS}
-    readonly ORIG_SHELLOPTS=${SHELLOPTS}
-
-    set_original_pwd() {
-        cd "${ORIG_PWD}"
-        export OLDPWD=${ORIG_OLDPWD}
-    }
-
-    set_our_shell_options() {
-        set -o errexit      # Exit on a failed command...
-        set -o pipefail     # ...even if that command is in a pipeline.
-        shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
-    }
-
-    set_original_shell_options() {
-        set_our_shell_options
-        [[ "${ORIG_SHELLOPTS}" == *errexit*  ]] || set +o errexit
-        [[ "${ORIG_SHELLOPTS}" == *pipefail* ]] || set +o pipefail
-        [[ "${ORIG_BASHOPTS}"  == *nullglob* ]] || shopt -u nullglob
-    }
-
-    set_our_shell_options
-
-    #
     # Help and Usage
     #
 
-    version='concurrent 1.1.5'
+    version='concurrent 1.1.6'
 
     usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -114,6 +85,48 @@ concurrent() (
     # No longer need these up in our business.
     unset -f display_usage_and_exit display_version_and_exit
     unset usage version
+
+    #
+    # Compatibility Check
+    #
+
+    error() {
+        echo "ERROR (concurrent): ${1}" 1>&2
+        exit 1
+    }
+
+    if [[ -z "${BASH_VERSINFO[@]}" ]] || [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+        error "Requires Bash version 4 required (you have ${BASH_VERSION:-a different shell})"
+    fi
+
+    #
+    # Settings
+    #
+
+    readonly ORIG_PWD=${PWD}
+    readonly ORIG_OLDPWD=${OLDPWD}
+    readonly ORIG_BASHOPTS=${BASHOPTS}
+    readonly ORIG_SHELLOPTS=${SHELLOPTS}
+
+    set_original_pwd() {
+        cd "${ORIG_PWD}"
+        export OLDPWD=${ORIG_OLDPWD}
+    }
+
+    set_our_shell_options() {
+        set -o errexit      # Exit on a failed command...
+        set -o pipefail     # ...even if that command is in a pipeline.
+        shopt -s nullglob   # Empty glob evaluates to nothing instead of itself
+    }
+
+    set_original_shell_options() {
+        set_our_shell_options
+        [[ "${ORIG_SHELLOPTS}" == *errexit*  ]] || set +o errexit
+        [[ "${ORIG_SHELLOPTS}" == *pipefail* ]] || set +o pipefail
+        [[ "${ORIG_BASHOPTS}"  == *nullglob* ]] || shopt -u nullglob
+    }
+
+    set_our_shell_options
 
     #
     # Task Management
@@ -342,11 +355,6 @@ concurrent() (
     #
     # Argument Parsing
     #
-
-    error() {
-        echo "ERROR (concurrent): ${1}" 1>&2
-        exit 1
-    }
 
     names=()        # task names by index
     codes=()        # task exit codes (unset, 0-255, 'skip', or 'int') by index
