@@ -1,10 +1,17 @@
 concurrent() (
     #
-    # Bash Settings
+    # Settings
     #
 
-    readonly ORIG_SHELLOPTS=${SHELLOPTS}
+    readonly ORIG_PWD=${PWD}
+    readonly ORIG_OLDPWD=${OLDPWD}
     readonly ORIG_BASHOPTS=${BASHOPTS}
+    readonly ORIG_SHELLOPTS=${SHELLOPTS}
+
+    set_original_pwd() {
+        cd "${ORIG_PWD}"
+        export OLDPWD=${ORIG_OLDPWD}
+    }
 
     set_our_shell_options() {
         set -o errexit      # Exit on a failed command...
@@ -25,9 +32,9 @@ concurrent() (
     # Help and Usage
     #
 
-    version='concurrent 1.1.4'
+    version='concurrent 1.1.5'
 
-    usage="concurrent - Run and display the statuses of concurrent and inter-dependant tasks.
+    usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
         Usage:
           concurrent (- TASK COMMAND [ARGS...])... [(--require TASK)... (--before TASK)...]...
@@ -74,10 +81,19 @@ concurrent() (
               --before  'My long task'
 
         Requirements:
-          bash v4, sed, tput, date, ls, mktemp, kill, cp, mv
+          bash v4, sed, tput, date, mktemp, kill, cp, mv
+
+        Author:
+          Matthew Tardiff <mattrix@gmail.com>
+
+        License:
+          MIT
 
         Version:
-          ${version}"
+          ${version}
+
+        URL:
+          https://github.com/themattrix/bash-concurrent"
 
     display_usage_and_exit() {
        sed 's/^        //' <<< "${usage}"
@@ -167,13 +183,14 @@ concurrent() (
             mark_task_with_code "${task}" int
             trap INT      # reset the signal handler
             kill -INT $$  # re-raise the signal
-            exit 255      # don't continue this task
+            exit 255      # do not continue this task
         }
 
         trap sigint_handler INT
 
         set +o errexit  # a failure of the command should not exit the task
         (
+            set_original_pwd
             set_original_shell_options
             "${!command_args}" &> "${status_dir}/${task}"
         )
