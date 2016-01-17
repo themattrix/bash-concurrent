@@ -1,4 +1,4 @@
-# Concurrent ![version: 1.2.0](https://img.shields.io/badge/version-1.2.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
+# Concurrent ![version: 1.3.0](https://img.shields.io/badge/version-1.3.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -77,6 +77,8 @@ Take a look at [`demo.sh`](demo.sh) for more involved examples.
 
 ## Change Log
 
+- **1.3.0**
+  - *New:* New `--sequential` flag, for when each task requires the previous.
 - **1.2.0**
   - *New:* Running tasks have an animated cursor.
   - *Fix:* Enforcing bash version 4.3.

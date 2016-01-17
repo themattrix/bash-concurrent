@@ -3,12 +3,14 @@ concurrent() (
     # Help and Usage
     #
 
-    version='concurrent 1.2.0'
+    version='concurrent 1.3.0'
 
     usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
         Usage:
-          concurrent (- TASK COMMAND [ARGS...])... [(--require TASK)... (--before TASK)...]...
+          concurrent \\
+              (- TASK COMMAND [ARGS...])... \\
+              [--sequential | [(--require TASK)... (--before TASK)...]...]
           concurrent -h | --help
           concurrent --version
 
@@ -16,6 +18,7 @@ concurrent() (
           -h --help                 Show this help.
           --version                 Show version.
           - TASK COMMAND [ARGS...]  Define a task named TASK for running COMMAND with ARGS.
+          --sequential              Each task requires the previous task.
           --require TASK            Require a TASK to complete successfully...
           --before TASK             ...before another TASK.
 
@@ -439,26 +442,44 @@ concurrent() (
     # These are dynamically created during argument parsing since bash doesn't
     # have a concept of nested lists.
 
+    is_task_flag()       { [[ "${1}" == "-"            ]]; }
+    is_require_flag()    { [[ "${1}" == "--require"    ]]; }
+    is_before_flag()     { [[ "${1}" == "--before"     ]]; }
+    is_sequential_flag() { [[ "${1}" == "--sequential" ]]; }
+
+    is_flag_starting_section() {
+        is_task_flag "${1}" ||
+        is_require_flag "${1}" ||
+        is_sequential_flag "${1}"
+    }
+
+    parsing_funcs=(
+        is_task_flag
+        is_require_flag
+        is_before_flag
+        is_sequential_flag
+    )
+
     while (( $# )); do
-        if [[ "${1}" == '-' ]]; then
+        if is_task_flag "${1}"; then
             shift; (( $# )) || error "expected task name after '-'"
             names+=("${1}")
             shift; (( $# )) || error "expected command after task name"
             args=()
-            while (( $# )) && [[ "${1}" != '-' ]] && [[ "${1}" != '--require' ]]; do
+            while (( $# )) && ! is_flag_starting_section "${1}"; do
                 args+=("${1}")
                 shift
             done
             declare -a "command_${task_count}=(\"\${args[@]}\")"
             (( task_count++ )) || :
-        elif [[ "${1}" == "--require" ]]; then
+        elif is_require_flag "${1}"; then
             require=()
-            while (( $# )) && [[ "${1}" == "--require" ]]; do
+            while (( $# )) && is_require_flag "${1}"; do
                 shift; (( $# )) || error "expected task name after '--require'"
                 require=(${require[@]} $(name_index "${1}"))
                 shift
             done
-            while (( $# )) && [[ "${1}" == "--before" ]]; do
+            while (( $# )) && is_before_flag "${1}"; do
                 shift; (( $# )) || error "expected task name after '--before'"
                 before=$(name_index "${1}")
                 for r in "${require[@]}"; do
@@ -466,10 +487,19 @@ concurrent() (
                 done
                 shift
             done
+        elif is_sequential_flag "${1}"; then
+            for (( i = 1; i < task_count; i++ )); do
+                declare -a "prereqs_${i}=($(( i - 1 )))"
+            done
+            # All further options are irrelevant.
+            break
         else
             error "unexpected argument '${1}'"
         fi
     done
+
+    unset -f "${parsing_funcs}"
+    unset parsing_funcs
 
     log_dir="${PWD}/.logs/$(date +'%F@%T')"
     mkdir -p "${log_dir}"
