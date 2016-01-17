@@ -1,4 +1,4 @@
-# Concurrent ![version: 1.1.6](https://img.shields.io/badge/version-1.1.6-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
+# Concurrent ![version: 1.2.0](https://img.shields.io/badge/version-1.2.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -65,7 +65,7 @@ Take a look at [`demo.sh`](demo.sh) for more involved examples.
 
 ## Requirements
 
-- bash (v4)
+- bash >= 4.3 (for `wait -n`)
 - sed
 - tput
 - date
@@ -73,3 +73,28 @@ Take a look at [`demo.sh`](demo.sh) for more involved examples.
 - kill
 - mv
 - cp
+
+
+## Change Log
+
+- **1.2.0**
+  - *New:* Running tasks have an animated cursor.
+  - *Fix:* Enforcing bash version 4.3.
+  - *Fix:* Echo is re-enabled even if an internal error occurs.
+- **1.1.6**
+  - *Fix:* Enforcing bash version 4.
+- **1.1.5**
+  - *Fix:* Tasks now use original `$PWD` and `$OLDPWD`.
+- **1.1.4**
+  - *Fix:* Tasks now use original `$SHELLOPTS` and `$BASHOPTS`.
+- **1.1.3**
+  - *Fix:* Sanitizing forward slashes from log names.
+- **1.1.2**
+  - *Fix:* Ensuring task status file exists even if an internal error occurs.
+- **1.1.1**
+  - *Fix:* Task command may now have arguments starting with `-`.
+- **1.1.0**
+  - *New:* Gracefully handling SIGINT.
+  - *Fix:* Works on OS X too.
+- **1.0.0**
+  - Initial working release.

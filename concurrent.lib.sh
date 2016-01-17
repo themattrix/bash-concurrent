@@ -3,7 +3,7 @@ concurrent() (
     # Help and Usage
     #
 
-    version='concurrent 1.1.6'
+    version='concurrent 1.2.0'
 
     usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -52,7 +52,7 @@ concurrent() (
               --before  'My long task'
 
         Requirements:
-          bash v4, sed, tput, date, mktemp, kill, cp, mv
+          bash >= 4.3, sed, tput, date, mktemp, kill, cp, mv
 
         Author:
           Matthew Tardiff <mattrix@gmail.com>
@@ -95,8 +95,8 @@ concurrent() (
         exit 1
     }
 
-    if [[ -z "${BASH_VERSINFO[@]}" ]] || [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
-        error "Requires Bash version 4 required (you have ${BASH_VERSION:-a different shell})"
+    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 3 ]]; then
+        error "Requires Bash version 4.3 for 'wait -n' (you have ${BASH_VERSION:-a different shell})"
     fi
 
     #
@@ -129,6 +129,99 @@ concurrent() (
     set_our_shell_options
 
     #
+    # Status Updates
+    #
+
+    txtred='\e[0;31m' # Red
+    txtgrn='\e[0;32m' # Green
+    txtylw='\e[0;33m' # Yellow
+    txtblu='\e[0;34m' # Blue
+    txtrst='\e[0m'    # Text Reset
+
+    seconds_between_frames=1.0
+    running_status_current_frame=0
+    running_status_frames=(
+        " ${txtblu}    =>${txtrst} "
+        " ${txtblu}     >${txtrst} "
+    )
+
+    indent() {
+        sed 's/^/    /' "${@}"
+    }
+
+    move_cursor_to_first_task() {
+        tput cuu "${task_count}"
+        tput sc
+    }
+
+    move_cursor_below_tasks() {
+        tput cud "${task_count}"
+        tput sc
+    }
+
+    draw_running_status() {
+        echo -en "${running_status_frames[${running_status_current_frame}]}"
+    }
+
+    draw_status() {
+        local index=${1}
+        local code=${2}
+        tput rc
+        [[ "${index}" -eq 0 ]] || tput cud "${index}"
+        if   [[ "${code}" == "running" ]]; then draw_running_status
+        elif [[ "${code}" == "int"     ]]; then echo -en " ${txtred}SIGINT${txtrst} "
+        elif [[ "${code}" == "skip"    ]]; then echo -en " ${txtylw} SKIP ${txtrst} "
+        elif [[ "${code}" == "0"       ]]; then echo -en " ${txtgrn}  OK  ${txtrst} "
+        else                                    echo -en " ${txtred}FAILED${txtrst} "
+        fi
+        tput rc
+    }
+
+    update_running_status_frames() {
+        local i
+        for (( i = 0; i < task_count; i++ )); do
+            if is_task_running "${i}"; then
+                draw_status "${i}" running
+            fi
+        done
+        running_status_current_frame=$((
+            (running_status_current_frame + 1) % ${#running_status_frames[@]}
+        ))
+    }
+
+    print_failures() {
+        cd "${status_dir}"
+        local i
+        for (( i = 0; i < task_count; i++ )); do
+            if [[ "${codes[${i}]}" != '0' ]]; then
+                echo
+                echo "['${names[${i}]}' failed with exit status ${codes[${i}]}]"
+                indent "${i}"
+            fi
+        done
+        if [[ "${final_status}" != "0" ]]; then
+            printf '\nLogs for all tasks can be found in:\n    %s\n' "${log_dir}/"
+        fi
+    }
+
+    disable_echo() {
+        # Disable local echo so the user can't mess up the pretty display.
+        stty -echo &> /dev/null || :
+    }
+
+    enable_echo() {
+        # Enable local echo so user can type again. (Simply exiting the subshell
+        # is not sufficient to reset this, which is surprising.)
+        stty echo &> /dev/null || :
+    }
+
+    status_cleanup() {
+        trap INT  # no longer need special sigint handling
+        move_cursor_below_tasks
+        print_failures
+    }
+
+    #
     # Task Management
     #
 
@@ -138,6 +231,13 @@ concurrent() (
 
     is_task_done() {
         [[ -n "${codes[${1}]}" ]]
+    }
+
+    are_all_tasks_done() {
+        local i
+        for (( i = 0; i < task_count; i++ )); do
+            is_task_done "${i}" || return 1
+        done
     }
 
     is_task_running() {
@@ -263,18 +363,16 @@ concurrent() (
     }
 
     has_unseen_done_tasks() {
+        cd "${status_dir}"
         compgen -G '*.done.*' > /dev/null
     }
 
     wait_for_all_tasks() {
+        start_animation_frame
         while wait -n; do
             manage_tasks
+            manage_animation
         done
-        status_cleanup
-    }
-
-    cleanup_int_tasks() {
-        manage_tasks
         status_cleanup
     }
 
@@ -303,75 +401,22 @@ concurrent() (
         fi
     }
 
-    status_cleanup() {
-        trap INT  # no longer need special sigint handling
-        move_cursor_below_tasks
-        print_failures
-    }
-
-    #
-    # Status Updates
-    #
-
-    txtred='\e[0;31m' # Red
-    txtgrn='\e[0;32m' # Green
-    txtylw='\e[0;33m' # Yellow
-    txtblu='\e[0;34m' # Blue
-    txtrst='\e[0m'    # Text Reset
-
-    indent() {
-        sed 's/^/    /' "${@}"
-    }
-
-    move_cursor_to_first_task() {
-        tput cuu "${task_count}"
-        tput sc
-    }
-
-    move_cursor_below_tasks() {
-        tput cud "${task_count}"
-        tput sc
-    }
-
-    draw_status() {
-        local index=${1}
-        local code=${2}
-        tput rc
-        [[ "${index}" -eq 0 ]] || tput cud "${index}"
-        if   [[ "${code}" == "running" ]]; then echo -en " ${txtblu}    =>${txtrst} "
-        elif [[ "${code}" == "int"     ]]; then echo -en " ${txtred}SIGINT${txtrst} "
-        elif [[ "${code}" == "skip"    ]]; then echo -en " ${txtylw} SKIP ${txtrst} "
-        elif [[ "${code}" == "0"       ]]; then echo -en " ${txtgrn}  OK  ${txtrst} "
-        else                                    echo -en " ${txtred}FAILED${txtrst} "
-        fi
-        tput rc
-    }
-
-    print_failures() {
-        cd "${status_dir}"
-        local i
-        for (( i = 0; i < task_count; i++ )); do
-            if [[ "${codes[${i}]}" != '0' ]]; then
-                echo
-                echo "['${names[${i}]}' failed with exit status ${codes[${i}]}]"
-                indent "${i}"
-            fi
-        done
-
-        if [[ "${final_status}" != "0" ]]; then
-            printf '\nLogs for all tasks can be found in:\n    %s\n' "${log_dir}/"
+    manage_animation() {
+        if is_animation_frame_done && ! are_all_tasks_done; then
+            start_animation_frame
         fi
     }
 
-    disable_echo() {
-        # Disable local echo so the user can't mess up the pretty display.
-        stty -echo &> /dev/null || :
+    start_animation_frame() {
+        update_running_status_frames
+        {
+            sleep "${seconds_between_frames}"
+            > "${status_dir}/anim"
+        } &
     }
 
-    enable_echo() {
-        # Enable local echo so user can type again. (Simply exiting the subshell
-        # is not sufficient to reset this, which is surprising.)
-        stty echo &> /dev/null || :
+    is_animation_frame_done() {
+        rm -- "${status_dir}/anim" &> /dev/null
     }
 
     #
@@ -438,7 +483,8 @@ concurrent() (
         # Clean things up even if there's a bug in this script.
         trap handle_exit EXIT
         stop_all_tasks
-        cleanup_int_tasks
+        manage_tasks
+        status_cleanup
         trap INT      # reset the signal
         kill -INT $$  # re-raise the signal
         exit 255      # don't resume the script
