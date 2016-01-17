@@ -224,7 +224,6 @@ concurrent() (
 
     start_all_tasks() {
         status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXX")
-        trap 'rm -rf "${status_dir}"' EXIT
         local i
         for (( i = 0; i < task_count; i++ )); do
             echo "        ${names[${i}]}"
@@ -246,6 +245,7 @@ concurrent() (
                 stop_task "${i}"
             fi
         done
+        wait
     }
 
     skip_task() {
@@ -267,21 +267,26 @@ concurrent() (
     }
 
     wait_for_all_tasks() {
-        cd "${status_dir}"
-        local i
-        local f
-        for (( i = 0; i < task_count; i++ )); do
-            wait -n || :
-            while has_unseen_done_tasks; do
-                for f in *.done.*; do
-                    handle_done_task "${f}"
-                done
-                start_allowed_tasks
-            done
+        while wait -n; do
+            manage_tasks
         done
-        move_cursor_below_tasks
-        all_done=true
-        print_failures
+        status_cleanup
+    }
+
+    cleanup_int_tasks() {
+        manage_tasks
+        status_cleanup
+    }
+
+    manage_tasks() {
+        cd "${status_dir}"
+        local f
+        while has_unseen_done_tasks; do
+            for f in *.done.*; do
+                handle_done_task "${f}"
+            done
+            start_allowed_tasks
+        done
     }
 
     handle_done_task() {
@@ -296,6 +301,12 @@ concurrent() (
         if [[ "${code}" != "0" ]]; then
             final_status=1
         fi
+    }
+
+    status_cleanup() {
+        trap INT  # no longer need special sigint handling
+        move_cursor_below_tasks
+        print_failures
     }
 
     #
@@ -352,6 +363,17 @@ concurrent() (
         fi
     }
 
+    disable_echo() {
+        # Disable local echo so the user can't mess up the pretty display.
+        stty -echo &> /dev/null || :
+    }
+
+    enable_echo() {
+        # Enable local echo so user can type again. (Simply exiting the subshell
+        # is not sufficient to reset this, which is surprising.)
+        stty echo &> /dev/null || :
+    }
+
     #
     # Argument Parsing
     #
@@ -361,7 +383,6 @@ concurrent() (
     started=()      # task started status (unset or 'true') by index
     pids=()         # command pids by index
     task_count=0    # total number of tasks
-    all_done=false  # false until all tasks complete or are skipped, then true
     final_status=0  # 0 if all tasks succeeded, 1 otherwise
 
     # Arrays of command arguments by task index <T>:
@@ -408,28 +429,27 @@ concurrent() (
     log_dir="${PWD}/.logs/$(date +'%F@%T')"
     mkdir -p "${log_dir}"
 
-    handle_sigint() {
-        if [[ "${all_done}" != "true" ]]; then
-            stop_all_tasks
-            wait_for_all_tasks
-        fi
-        stty echo &> /dev/null || :  # re-enable echo
-        trap INT                     # reset the trap
-        kill -INT $$                 # re-raise the signal
-        exit 255                     # don't resume the script
+    handle_exit() {
+        rm -rf "${status_dir}"
+        enable_echo
     }
 
+    handle_sigint() {
+        # Clean things up even if there's a bug in this script.
+        trap handle_exit EXIT
+        stop_all_tasks
+        cleanup_int_tasks
+        trap INT      # reset the signal
+        kill -INT $$  # re-raise the signal
+        exit 255      # don't resume the script
+    }
+
+    trap handle_exit EXIT
     trap handle_sigint INT
 
-    # Disable local echo so the user can't mess up the pretty display.
-    stty -echo &> /dev/null || :
-
+    disable_echo
     start_all_tasks
     wait_for_all_tasks
-
-    # Enable local echo so user can type again. (Simply exiting the subshell
-    # is not sufficient to reset this, which is surprising.)
-    stty echo &> /dev/null || :
 
     exit ${final_status}
 )
