@@ -9,7 +9,7 @@ success() {
     local data_source=dropbox
 
     local args=(
-        - "Creating VM on ${provider}"                          my_sleep 1.0
+        - "Creating VM on ${provider}"                          my_sleep 3.0
         - "Creating ramdisk"                                    my_sleep 0.1
         - "Enabling swap"                                       my_sleep 0.1
         - "Populating VM with world data from ${data_source}"   my_sleep 5.0
@@ -44,7 +44,7 @@ failure() {
     local data_source=dropbox
 
     local args=(
-        - "Creating VM on ${provider}"                          my_sleep 1.0
+        - "Creating VM on ${provider}"                          my_sleep 3.0
         - "Creating ramdisk"                                    my_sleep 0.1
         - "Enabling swap"                                       my_sleep 0.1
         - "Populating VM with world data from ${data_source}"   my_sleep 0.0 64
