@@ -3,7 +3,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 1.4.0'
+    __crt__help__version='concurrent 1.4.1'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -484,7 +484,7 @@ concurrent() (
         return 1
     }
 
-    get_tasks_not_in() {
+    __crt__args__get_tasks_not_in() {
         local these_tasks=${1}
         local other_tasks=()
         local i
@@ -541,7 +541,7 @@ concurrent() (
 
         if __crt__args__is_before_all_flag "${1}"; then
             shift
-            get_tasks_not_in 'require'; before=("${__crt__args__fn_result[@]}")
+            __crt__args__get_tasks_not_in 'require'; before=("${__crt__args__fn_result[@]}")
             local b
             for b in "${before[@]}"; do
                 declare -g -a "prereqs_${b}=(\${require[@]})"
@@ -577,7 +577,7 @@ concurrent() (
                 before=(${before[@]} $(__crt__name_index "${1}"))
                 shift
             done
-            get_tasks_not_in 'before'; require=("${__crt__args__fn_result[@]}")
+            __crt__args__get_tasks_not_in 'before'; require=("${__crt__args__fn_result[@]}")
             local b
             for b in "${before[@]}"; do
                 declare -g -a "prereqs_${b}=(\${require[@]})"

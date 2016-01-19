@@ -1,4 +1,4 @@
-# Concurrent ![version: 1.4.0](https://img.shields.io/badge/version-1.4.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
+# Concurrent ![version: 1.4.1](https://img.shields.io/badge/version-1.4.1-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -77,6 +77,8 @@ Take a look at [`demo.sh`](demo.sh) for more involved examples.
 
 ## Change Log
 
+- **1.4.1**
+  - *Fix:* Namespaced previously-missed function.
 - **1.4.0**
   - *New:* New `--require-all` and `--before-all` flags.
   - *Fix:* Namespaced all concurrent-related functions and variables.
