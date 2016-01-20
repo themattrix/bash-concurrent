@@ -3,7 +3,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 1.5.2'
+    __crt__help__version='concurrent 1.6.0'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -95,6 +95,11 @@ concurrent() (
         __crt__help__display_version_and_exit
     fi
 
+    __crt__unset_env() {
+        # Unset all concurrent-related environment variables.
+        unset CONCURRENT_DRY_RUN
+    }
+
     __crt__unset() {
         local sub_namespace=${1}
         [[ -n "${sub_namespace}" ]] &&
@@ -118,6 +123,10 @@ concurrent() (
     if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 3 ]]; then
         __crt__error "Requires Bash version 4.3 for 'wait -n' (you have ${BASH_VERSION:-a different shell})"
     fi
+
+    __crt__is_dry_run() {
+        [[ -n "${CONCURRENT_DRY_RUN}" ]]
+    }
 
     #
     # Settings
@@ -329,6 +338,7 @@ concurrent() (
         (
             __crt__set_original_pwd
             __crt__set_original_shell_options
+            __crt__unset_env
             __crt__unset
             "${!2}" &> "${3}/${1}"
         )
@@ -522,6 +532,9 @@ concurrent() (
             args+=("${1}")
             shift
         done
+        if __crt__is_dry_run; then
+            args=(sleep 3)  # DRY RUN: Sleep for 3 seconds instead of running a real command.
+        fi
         declare -g -a "command_${__crt__task_count}=(\"\${args[@]}\")"
         (( __crt__task_count++ )) || :
 
@@ -560,7 +573,7 @@ concurrent() (
                 before=$(__crt__name_index "${1}")
                 shift
                 if __crt__args__is_item_in_array "${before}" "require"; then
-                    __crt__error "task cannot depend on itself"
+                    __crt__error "task cannot require itself"
                 fi
                 declare -g -a "prereqs_${before}=(\${prereqs_${before}[@]} \${require[@]})"
             done
@@ -694,6 +707,9 @@ concurrent() (
     trap __crt__handle_exit EXIT
     trap __crt__handle_sigint INT
 
+    if __crt__is_dry_run; then
+        echo '>>> DRY RUN (concurrent): The "$CONCURRENT_DRY_RUN" environment variable is set. <<<'
+    fi
     __crt__start_all_tasks
     __crt__wait_for_all_tasks
 

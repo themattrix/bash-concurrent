@@ -1,4 +1,4 @@
-# Concurrent ![version: 1.5.2](https://img.shields.io/badge/version-1.5.2-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
+# Concurrent ![version: 1.6.0](https://img.shields.io/badge/version-1.6.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -62,6 +62,14 @@ concurrent \\
 
 Take a look at [`demo.sh`](demo.sh) for more involved examples.
 
+
+## Dry Run
+
+If you have a lot of dependencies between tasks, it's generally a good idea to
+perform a dry-run to ensure that the tasks are ordered as expected. Set the
+`CONCURRENT_DRY_RUN` environment variable to perform a dry-run.
+
+
 ## Failure Demo
 
 [![asciicast](https://asciinema.org/a/33617.png)](https://asciinema.org/a/33617)
@@ -86,6 +94,8 @@ Take a look at [`demo.sh`](demo.sh) for more involved examples.
 
 ## Change Log
 
+- **1.6.0**
+  - *New:* `CONCURRENT_DRY_RUN` environment variable runs `sleep 3` instead of actual commands (and prints message).
 - **1.5.2**
   - *Fix:* Requirement loops disallowed.
 - **1.5.1**
