@@ -3,7 +3,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 1.6.0'
+    __crt__help__version='concurrent 2.0.0'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -65,7 +65,7 @@ concurrent() (
               + 'My short task'  sleep 1
 
         Requirements:
-          bash >= 4.3, sed, tput, date, mktemp, kill, cp, mv
+          bash >= TODO, cat, cp, date, kill, mkdir, mkfifo, mktemp, mv, sed, tail, tput
 
         Author:
           Matthew Tardiff <mattrix@gmail.com>
@@ -112,21 +112,29 @@ concurrent() (
     __crt__unset 'help'
 
     #
-    # Compatibility Check
+    # General Utilities
     #
-
     __crt__error() {
         echo "ERROR (concurrent): ${1}" 1>&2
         exit 1
     }
 
-    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 3 ]]; then
-        __crt__error "Requires Bash version 4.3 for 'wait -n' (you have ${BASH_VERSION:-a different shell})"
-    fi
-
     __crt__is_dry_run() {
         [[ -n "${CONCURRENT_DRY_RUN}" ]]
     }
+
+    __crt__hide_failure() {
+        "${@}" &> /dev/null || :
+    }
+
+    #
+    # Compatibility Check
+    #
+
+    # TODO: determine minimum bash version
+    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 3 ]]; then
+        __crt__error "Requires Bash version 4.3 (you have ${BASH_VERSION:-a different shell})"
+    fi
 
     #
     # Settings
@@ -165,6 +173,7 @@ concurrent() (
     __crt__txtgrn='\e[0;32m' # Green
     __crt__txtylw='\e[0;33m' # Yellow
     __crt__txtblu='\e[0;34m' # Blue
+    __crt__bldwht='\e[1;37m' # White
     __crt__txtrst='\e[0m'    # Text Reset
 
     __crt__seconds_between_frames=1.0
@@ -192,6 +201,13 @@ concurrent() (
         echo -en "${__crt__running_status_frames[${__crt__running_status_current_frame}]}"
     }
 
+    __crt__draw_initial_tasks() {
+        local i
+        for (( i = 0; i < __crt__task_count; i++ )); do
+            echo "        ${__crt__names[${i}]}"
+        done
+    }
+
     __crt__draw_status() {
         local index=${1}
         local code=${2}
@@ -203,6 +219,15 @@ concurrent() (
         elif [[ "${code}" == "0"       ]]; then echo -en " ${__crt__txtgrn}  OK  ${__crt__txtrst} "
         else                                    echo -en " ${__crt__txtred}FAILED${__crt__txtrst} "
         fi
+        tput rc
+    }
+
+    __crt__draw_meta() {
+        local index=${1}
+        tput rc
+        [[ "${index}" -eq 0 ]] || tput cud "${index}"
+        tput cuf 8  # move past status
+        printf "%s ${__crt__bldwht}%s${__crt__txtrst}" "${__crt__names[${index}]}" "${__crt__meta[${index}]}"
         tput rc
     }
 
@@ -315,6 +340,7 @@ concurrent() (
         local task=${1}
         local code=${2}
         mv -- "${__crt__status_dir}/${task}"{,.done.${code}}
+        echo "task:${task}:${code}" >> "${__crt__status_fifo}"
     }
 
     __crt__task_runner() (
@@ -334,17 +360,17 @@ concurrent() (
 
         trap "__crt__sigint_handler ${1}" INT
 
-        set +o errexit  # a failure of the command should not exit the task
+        set +o errexit    # a failure of the command should not exit the task
         (
             __crt__set_original_pwd
             __crt__set_original_shell_options
             __crt__unset_env
             __crt__unset
-            "${!2}" &> "${3}/${1}"
+            "${!2}" &> "${3}/${1}" 3>> "${3}/meta/${1}"
         )
         code=$?
-        set -o errexit  # but other failures should
-        trap INT        # reset the signal handler
+        set -o errexit    # but other failures should
+        trap INT          # reset the signal handler
 
         __crt__mark_task_with_code "${1}" "${code}"
     )
@@ -356,13 +382,6 @@ concurrent() (
         __crt__draw_status "${1}" running
     }
 
-    __crt__draw_initial_tasks() {
-        local i
-        for (( i = 0; i < __crt__task_count; i++ )); do
-            echo "        ${__crt__names[${i}]}"
-        done
-    }
-
     __crt__start_all_tasks() {
         __crt__draw_initial_tasks
         __crt__move_cursor_to_first_task
@@ -372,17 +391,21 @@ concurrent() (
     __crt__stop_task() {
         __crt__started["${1}"]=true
         echo "[INTERRUPTED]" >> "${__crt__status_dir}/${1}"
-        kill -INT "${__crt__pids[${1}]}"
+        __crt__hide_failure kill -INT "${__crt__pids[${1}]}"
     }
 
     __crt__stop_all_tasks() {
         local i
+        local wait_for=()
         for (( i = 0; i < __crt__task_count; i++ )); do
             if __crt__is_task_running "${i}"; then
                 __crt__stop_task "${i}"
+                wait_for+=("${i}")
             fi
         done
-        wait
+        for i in "${wait_for[@]}"; do
+            __crt__hide_failure wait "${__crt__pids[${i}]}"
+        done
     }
 
     __crt__skip_task() {
@@ -405,12 +428,26 @@ concurrent() (
     }
 
     __crt__wait_for_all_tasks() {
+        local __crt__status
         __crt__start_animation_frame
-        while wait -n; do
-            __crt__manage_tasks
-            __crt__manage_animation
-        done
+        exec 4<&0  # duplicate stdin stream to fd 4
+        while read -r __crt__status; do
+            if [[ "${__crt__status}" == task:* ]]; then
+                __crt__manage_tasks
+            elif [[ "${__crt__status}" == anim:* ]]; then
+                __crt__start_animation_frame
+            elif [[ "${__crt__status}" == meta:* ]]; then
+                __crt__manage_meta "${__crt__status#meta:}"
+            fi
+            if __crt__are_all_tasks_done; then
+                break
+            fi
+        done < "${__crt__status_fifo}"  # replace stdin stream with fifo
         __crt__status_cleanup
+        __crt__stop_animation
+        __crt__stop_meta_collector
+        wait
+        exec 0<&4  # restore original stdin stream from fd 4
     }
 
     __crt__manage_tasks() {
@@ -438,22 +475,54 @@ concurrent() (
         fi
     }
 
-    __crt__manage_animation() {
-        if __crt__is_animation_frame_done && ! __crt__are_all_tasks_done; then
-            __crt__start_animation_frame
-        fi
-    }
-
     __crt__start_animation_frame() {
         __crt__update_running_status_frames
         {
             sleep "${__crt__seconds_between_frames}"
-            > "${__crt__status_dir}/anim"
+            echo "anim:" >> "${__crt__status_fifo}"
         } &
+
+        __crt__animation_pid=$!
     }
 
-    __crt__is_animation_frame_done() {
-        rm -- "${__crt__status_dir}/anim" &> /dev/null
+    __crt__stop_animation() {
+        __crt__hide_failure kill "${__crt__animation_pid}"
+        __crt__hide_failure wait "${__crt__animation_pid}"
+    }
+
+    __crt__start_meta_monitor() {
+        # Initialize meta files. This gives tail something to monitor.
+        mkdir "${__crt__status_dir}/meta"
+
+        local i
+        for (( i = 0; i < __crt__task_count; i++ )); do
+            > "${__crt__status_dir}/meta/${i}"
+        done
+
+        local pipe="${__crt__status_dir}/pipe0"
+        mkfifo "${pipe}"
+
+        cd "${__crt__status_dir}/meta"
+        tail -f * >> "${pipe}" &
+        __crt__meta_collector_pids=($!)
+
+        sed -n -u -e '
+            /^$/{b}
+            /^==> .* <==$/{s/^==> //;s/ <==$//;h;b}
+            G;s/\(.*\)\n\(.*\)/meta:\2:\1/p' "${pipe}" >> "${__crt__status_fifo}" &
+        __crt__meta_collector_pids+=($!)
+    }
+
+    __crt__stop_meta_collector() {
+        __crt__hide_failure kill "${__crt__meta_collector_pids[@]}"
+        __crt__hide_failure wait "${__crt__meta_collector_pids[@]}"
+    }
+
+    __crt__manage_meta() {
+        local index=${1%%:*}
+        local meta=${1#*:}
+        __crt__meta["${index}"]+=${meta}
+        __crt__draw_meta "${index}"
     }
 
     #
@@ -461,6 +530,7 @@ concurrent() (
     #
 
     __crt__names=()        # task names by index
+    __crt__meta=()         # metadata strings by index
     __crt__codes=()        # task exit codes (unset, 0-255, 'skip', or 'int') by index
     __crt__started=()      # task started status (unset or 'true') by index
     __crt__pids=()         # command pids by index
@@ -691,11 +761,16 @@ concurrent() (
     }
 
     __crt__handle_sigint() {
-        # Clean things up even if there's a bug in this script.
+        cat > /dev/null & draino=$!
+        exec 0<&4     # restore original stdin stream
         trap __crt__handle_exit EXIT
         __crt__stop_all_tasks
         __crt__manage_tasks
         __crt__status_cleanup
+        __crt__stop_animation
+        __crt__stop_meta_collector
+        __crt__hide_failure wait "${draino}"
+        wait
         trap INT      # reset the signal
         kill -INT $$  # re-raise the signal
         exit 255      # don't resume the script
@@ -703,6 +778,8 @@ concurrent() (
 
     __crt__disable_echo || __crt__error 'Must be run in the foreground of an interactive shell!'
     __crt__status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXX")
+    __crt__status_fifo="${__crt__status_dir}/status"
+    mkfifo "${__crt__status_fifo}"
 
     trap __crt__handle_exit EXIT
     trap __crt__handle_sigint INT
@@ -710,6 +787,7 @@ concurrent() (
     if __crt__is_dry_run; then
         echo '>>> DRY RUN (concurrent): The "$CONCURRENT_DRY_RUN" environment variable is set. <<<'
     fi
+    __crt__start_meta_monitor
     __crt__start_all_tasks
     __crt__wait_for_all_tasks
 

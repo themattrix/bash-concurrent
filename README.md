@@ -1,7 +1,8 @@
-# Concurrent ![version: 1.6.0](https://img.shields.io/badge/version-1.6.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
+# Concurrent ![version: 2.0.0](https://img.shields.io/badge/version-2.0.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
+TODO: update
 [![asciicast](https://asciinema.org/a/33615.png)](https://asciinema.org/a/33615)
 
 
@@ -60,6 +61,17 @@ concurrent \\
     + 'My short task'  sleep 1
 ```
 
+You can display extra information at the end of each task by outputting a line
+to `fd 3`.
+
+```bash
+my_task() {
+    ...
+    echo "(extra info)" >&3
+    ...
+}
+```
+
 Take a look at [`demo.sh`](demo.sh) for more involved examples.
 
 
@@ -72,28 +84,36 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 
 ## Failure Demo
 
+TODO: update
 [![asciicast](https://asciinema.org/a/33617.png)](https://asciinema.org/a/33617)
 
 
 ## Interrupted Demo
 
+TODO: update
 [![asciicast](https://asciinema.org/a/33618.png)](https://asciinema.org/a/33618)
 
 
 ## Requirements
 
-- bash >= 4.3 (for `wait -n`)
-- sed
-- tput
-- date
-- mktemp
-- kill
-- mv
+- bash >= TODO
+- cat
 - cp
+- date
+- kill
+- mkdir
+- mkfifo
+- mktemp
+- mv
+- sed
+- tail
+- tput
 
 
 ## Change Log
 
+- **2.0.0**
+  - *New:* Tasks can now display status updates by echoing to fd 3.
 - **1.6.0**
   - *New:* `CONCURRENT_DRY_RUN` environment variable runs `sleep 3` instead of actual commands (and prints message).
 - **1.5.2**
