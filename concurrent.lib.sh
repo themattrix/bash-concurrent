@@ -3,7 +3,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 1.4.1'
+    __crt__help__version='concurrent 1.5.0'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -57,6 +57,12 @@ concurrent() (
               --require 'My short task'   \\
               --before  'My medium task'  \\
               --before  'My long task'
+
+          # If your command has a '-' argument, you can use a different task delimiter.
+          concurrent \\
+              + 'My long task'   wget -O - ... \\
+              + 'My medium task' sleep 5  \\
+              + 'My short task'  sleep 1
 
         Requirements:
           bash >= 4.3, sed, tput, date, mktemp, kill, cp, mv
@@ -460,7 +466,9 @@ concurrent() (
     # These are dynamically created during argument parsing since bash doesn't
     # have a concept of nested lists.
 
-    __crt__args__is_task_flag()        { [[ "${1}" == "-"             ]]; }
+    __crt__args__task_delimiter=${1}
+
+    __crt__args__is_task_flag()        { [[ "${1}" == ${__crt__args__task_delimiter} ]]; }
     __crt__args__is_require_flag()     { [[ "${1}" == "--require"     ]]; }
     __crt__args__is_require_all_flag() { [[ "${1}" == "--require-all" ]]; }
     __crt__args__is_before_flag()      { [[ "${1}" == "--before"      ]]; }
