@@ -65,7 +65,7 @@ concurrent() (
               + 'My short task'  sleep 1
 
         Requirements:
-          bash >= TODO, cat, cp, date, kill, mkdir, mkfifo, mktemp, mv, sed, tail, tput
+          bash >= 4.2, cat, cp, date, kill, mkdir, mkfifo, mktemp, mv, sed, tail, tput
 
         Author:
           Matthew Tardiff <mattrix@gmail.com>
@@ -131,9 +131,8 @@ concurrent() (
     # Compatibility Check
     #
 
-    # TODO: determine minimum bash version
-    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 3 ]]; then
-        __crt__error "Requires Bash version 4.3 (you have ${BASH_VERSION:-a different shell})"
+    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 2 ]]; then
+        __crt__error "Requires Bash version 4.2 for 'declare -g' (you have ${BASH_VERSION:-a different shell})"
     fi
 
     #

@@ -96,7 +96,7 @@ TODO: update
 
 ## Requirements
 
-- bash >= TODO
+- bash >= 4.2 (for `declare -g`)
 - cat
 - cp
 - date
