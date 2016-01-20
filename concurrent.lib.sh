@@ -3,7 +3,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 1.5.0'
+    __crt__help__version='concurrent 1.5.1'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -559,6 +559,9 @@ concurrent() (
                 shift; (( $# )) || __crt__error "expected task name after '--before'"
                 before=$(__crt__name_index "${1}")
                 shift
+                if __crt__args__is_item_in_array "${before}" "require"; then
+                    __crt__error "task cannot depend on itself"
+                fi
                 declare -g -a "prereqs_${before}=(\${prereqs_${before}[@]} \${require[@]})"
             done
         else
