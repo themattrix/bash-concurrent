@@ -603,16 +603,16 @@ concurrent() (
     __crt__args__ensure_no_requirement_loops() (
         # We will do a lightweight dry-run through all of the tasks and make sure we
         # do not get stuck anywhere.
-        done=()
+        started=()
         tasks_started=0
 
         is_task_allowed_to_start() {
             local task=${1}
-            [[ -z "${done[${task}]}" ]] || return 1
+            [[ -z "${started[${task}]}" ]] || return 1
             local requires
             local prereqs="prereqs_${task}[@]"
             for requires in "${!prereqs}"; do
-                [[ -n "${done[${requires}]}" ]] || return 1
+                [[ -n "${started[${requires}]}" ]] || return 1
             done
         }
 
@@ -628,12 +628,12 @@ concurrent() (
         }
 
         start_task() {
-            done["${1}"]=true
+            started["${1}"]=true
         }
 
         while true; do
             start_allowed_tasks
-            [[ "${#done[@]}" != ${__crt__task_count} ]] || break
+            [[ "${#started[@]}" != ${__crt__task_count} ]] || break
             [[ "${tasks_started}" -gt 0 ]] || __crt__error "detected requirement loop"
         done
     )
