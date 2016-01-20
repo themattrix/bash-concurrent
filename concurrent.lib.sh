@@ -3,7 +3,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 1.5.1'
+    __crt__help__version='concurrent 1.5.2'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -600,6 +600,44 @@ concurrent() (
         remaining_args=("${@}")
     }
 
+    __crt__args__ensure_no_requirement_loops() (
+        # We will do a lightweight dry-run through all of the tasks and make sure we
+        # do not get stuck anywhere.
+        done=()
+        tasks_started=0
+
+        is_task_allowed_to_start() {
+            local task=${1}
+            [[ -z "${done[${task}]}" ]] || return 1
+            local requires
+            local prereqs="prereqs_${task}[@]"
+            for requires in "${!prereqs}"; do
+                [[ -n "${done[${requires}]}" ]] || return 1
+            done
+        }
+
+        start_allowed_tasks() {
+            tasks_started=0
+            local i
+            for (( i = 0; i < __crt__task_count; i++ )); do
+                if is_task_allowed_to_start "${i}"; then
+                    start_task "${i}"
+                    (( tasks_started++ )) || :
+                fi
+            done
+        }
+
+        start_task() {
+            done["${1}"]=true
+        }
+
+        while true; do
+            start_allowed_tasks
+            [[ "${#done[@]}" != ${__crt__task_count} ]] || break
+            [[ "${tasks_started}" -gt 0 ]] || __crt__error "detected requirement loop"
+        done
+    )
+
     __crt__args__parse() {
         local remaining_args=("${@}")
 
@@ -617,6 +655,7 @@ concurrent() (
             fi
         done
 
+        __crt__args__ensure_no_requirement_loops
         __crt__unset 'args'
     }
 
