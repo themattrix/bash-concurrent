@@ -2,8 +2,7 @@
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
-TODO: update
-[![asciicast](https://asciinema.org/a/33615.png)](https://asciinema.org/a/33615)
+[![asciicast](https://asciinema.org/a/34219.png)](https://asciinema.org/a/34219)
 
 
 ## Examples
@@ -61,7 +60,7 @@ concurrent \\
     + 'My short task'  sleep 1
 ```
 
-You can display extra information at the end of each task by outputting a line
+You can display extra information at the end of each task by echoing a line
 to `fd 3`.
 
 ```bash
@@ -84,14 +83,12 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 
 ## Failure Demo
 
-TODO: update
-[![asciicast](https://asciinema.org/a/33617.png)](https://asciinema.org/a/33617)
+[![asciicast](https://asciinema.org/a/34217.png)](https://asciinema.org/a/34217)
 
 
 ## Interrupted Demo
 
-TODO: update
-[![asciicast](https://asciinema.org/a/33618.png)](https://asciinema.org/a/33618)
+[![asciicast](https://asciinema.org/a/34218.png)](https://asciinema.org/a/34218)
 
 
 ## Requirements
