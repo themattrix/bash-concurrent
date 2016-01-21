@@ -16,6 +16,16 @@ concurrent \\
     - 'My short task'  sleep 1
 ```
 
+Run three tasks sequentially:
+
+```bash
+concurrent \\
+    - 'My long task'   sleep 10 \\
+    - 'My medium task' sleep 5  \\
+    - 'My short task'  sleep 1  \\
+    --sequential
+```
+
 Start the medium task *after* the short task succeeds:
 
 ```bash
@@ -60,8 +70,8 @@ concurrent \\
     + 'My short task'  sleep 1
 ```
 
-You can display extra information at the end of each task by echoing a line
-to `fd 3`.
+You can display extra information at the end of each task's status line by
+echoing to `fd 3`.
 
 ```bash
 my_task() {
