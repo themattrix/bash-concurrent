@@ -107,7 +107,6 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 - cat
 - cp
 - date
-- kill
 - mkdir
 - mkfifo
 - mktemp

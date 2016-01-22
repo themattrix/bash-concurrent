@@ -65,7 +65,7 @@ concurrent() (
               + 'My short task'  sleep 1
 
         Requirements:
-          bash >= 4.2, cat, cp, date, kill, mkdir, mkfifo, mktemp, mv, sed, tail, tput
+          bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed, tail, tput
 
         Author:
           Matthew Tardiff <mattrix@gmail.com>
