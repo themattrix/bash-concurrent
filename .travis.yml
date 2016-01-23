@@ -1,0 +1,12 @@
+language: bash
+sudo: required
+dist: trusty
+
+before_install:
+  - sudo apt-get update -q
+  - sudo apt-get install cabal-install -y
+  - cabal update
+  - cabal install shellcheck
+script:
+  - ~/.cabal/bin/shellcheck concurrent.lib.sh
+  - ~/.cabal/bin/shellcheck demo.sh
