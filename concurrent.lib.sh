@@ -74,7 +74,7 @@ concurrent() (
               + 'My short task'  sleep 1
 
         Requirements:
-          bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed, tail, tput
+          bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed, gsed (for OS X), tail, tput
 
         Author:
           Matthew Tardiff <mattrix@gmail.com>
@@ -157,6 +157,12 @@ concurrent() (
     __crt__ORIG_OLDPWD=${OLDPWD}
     __crt__ORIG_BASHOPTS=${BASHOPTS}
     __crt__ORIG_SHELLOPTS=${SHELLOPTS}
+
+    if [[ `uname` == 'Darwin' ]]; then
+        __crt__sed='gsed'   # for OS X
+    else
+        __crt__sed='sed'
+    fi
 
     __crt__set_original_pwd() {
         cd "${__crt__ORIG_PWD}"
@@ -522,7 +528,7 @@ concurrent() (
         tail -f * >> "${pipe}" &
         __crt__meta_collector_pids=($!)
 
-        sed -n -u -e '
+        "${__crt__sed}" -n -u -e '
             /^$/{b}
             /^==> .* <==$/{s/^==> //;s/ <==$//;h;b}
             G;s/\(.*\)\n\(.*\)/meta:\2:\1/p' "${pipe}" >> "${__crt__status_fifo}" &
