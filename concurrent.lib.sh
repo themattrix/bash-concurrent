@@ -2,6 +2,39 @@
 
 concurrent() (
     #
+    # General Utilities
+    #
+
+    __crt__error() {
+        echo "ERROR (concurrent): ${1}" 1>&2
+        exit 1
+    }
+
+    __crt__is_dry_run() {
+        [[ -n "${CONCURRENT_DRY_RUN}" ]]
+    }
+
+    __crt__hide_failure() {
+        "${@}" &> /dev/null || :
+    }
+
+    #
+    # Compatibility Check
+    #
+
+    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 2 ]]; then
+        __crt__error "Requires Bash version 4.2 for 'declare -g' (you have ${BASH_VERSION:-a different shell})"
+    fi
+
+    if sed --version &> /dev/null; then  # BSD sed has no --version
+        __crt__sed='sed'
+    elif gsed --version &> /dev/null; then
+        __crt__sed='gsed'
+    else
+        __crt__error "Requires GNU sed"
+    fi
+
+    #
     # Help and Usage
     #
 
@@ -74,7 +107,7 @@ concurrent() (
               + 'My short task'  sleep 1
 
         Requirements:
-          bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed, gsed (for OS X), tail, tput
+          bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed (gsed for OS X), tail, tput
 
         Author:
           Matthew Tardiff <mattrix@gmail.com>
@@ -89,7 +122,7 @@ concurrent() (
           https://github.com/themattrix/bash-concurrent"
 
     __crt__help__display_usage_and_exit() {
-       sed 's/^        //' <<< "${__crt__help__usage}"
+       "${__crt__sed}" 's/^        //' <<< "${__crt__help__usage}"
        exit 0
     }
 
@@ -125,31 +158,6 @@ concurrent() (
     __crt__unset 'help'
 
     #
-    # General Utilities
-    #
-
-    __crt__error() {
-        echo "ERROR (concurrent): ${1}" 1>&2
-        exit 1
-    }
-
-    __crt__is_dry_run() {
-        [[ -n "${CONCURRENT_DRY_RUN}" ]]
-    }
-
-    __crt__hide_failure() {
-        "${@}" &> /dev/null || :
-    }
-
-    #
-    # Compatibility Check
-    #
-
-    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 2 ]]; then
-        __crt__error "Requires Bash version 4.2 for 'declare -g' (you have ${BASH_VERSION:-a different shell})"
-    fi
-
-    #
     # Settings
     #
 
@@ -157,12 +165,6 @@ concurrent() (
     __crt__ORIG_OLDPWD=${OLDPWD}
     __crt__ORIG_BASHOPTS=${BASHOPTS}
     __crt__ORIG_SHELLOPTS=${SHELLOPTS}
-
-    if [[ `uname` == 'Darwin' ]]; then
-        __crt__sed='gsed'   # for OS X
-    else
-        __crt__sed='sed'
-    fi
 
     __crt__set_original_pwd() {
         cd "${__crt__ORIG_PWD}"
@@ -203,7 +205,7 @@ concurrent() (
     )
 
     __crt__indent() {
-        sed 's/^/    /' "${@}"
+        "${__crt__sed}" 's/^/    /' "${@}"
     }
 
     __crt__move_cursor_to_first_task() {

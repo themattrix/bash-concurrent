@@ -111,8 +111,7 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 - mkfifo
 - mktemp
 - mv
-- sed
-- gsed (for OS X)
+- sed (gsed for OS X)
 - tail
 - tput
 
