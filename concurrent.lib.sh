@@ -775,7 +775,8 @@ concurrent() (
 
     __crt__handle_exit() {
         rm -rf "${__crt__status_dir}"
-        __crt__enable_echo
+        __crt__hide_failure __crt__restore_stdin_stream
+        __crt__hide_failure __crt__enable_echo
     }
 
     __crt__handle_sigint() {
@@ -794,7 +795,6 @@ concurrent() (
 
         __crt__mark_all_running_tasks_as_interrupted
         __crt__run_event_loop
-        __crt__restore_stdin_stream
         __crt__status_cleanup
         __crt__stop_animation
         __crt__stop_meta_collector
