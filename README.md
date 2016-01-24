@@ -1,4 +1,4 @@
-# Concurrent ![version: 2.0.0](https://img.shields.io/badge/version-2.0.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
+# Concurrent ![version: 2.0.0](https://img.shields.io/badge/version-2.0.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
