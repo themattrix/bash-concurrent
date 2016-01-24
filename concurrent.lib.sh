@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 concurrent() (
     #
     # Help and Usage
@@ -102,10 +104,14 @@ concurrent() (
 
     __crt__unset() {
         local sub_namespace=${1}
-        [[ -n "${sub_namespace}" ]] &&
-            local namespace="__crt__${sub_namespace}__" ||
+        if [[ -n "${sub_namespace}" ]]; then
+            local namespace="__crt__${sub_namespace}__"
+        else
             local namespace="__crt__"
+        fi
+        # shellcheck disable=SC2046
         unset -f $(compgen -A function "${namespace}")
+        # shellcheck disable=SC2046
         unset $(compgen -v "${namespace}")
     }
 
@@ -338,7 +344,7 @@ concurrent() (
     __crt__mark_task_with_code() {
         local task=${1}
         local code=${2}
-        mv -- "${__crt__status_dir}/${task}"{,.done.${code}}
+        mv -- "${__crt__status_dir}/${task}"{,.done."${code}"}
         echo "task:${task}:${code}" >> "${__crt__status_fifo}"
     }
 
@@ -357,6 +363,7 @@ concurrent() (
             exit 255      # do not continue this task
         }
 
+        # shellcheck disable=SC2064
         trap "__crt__sigint_handler ${1}" INT
 
         set +o errexit    # a failure of the command should not exit the task
@@ -502,6 +509,7 @@ concurrent() (
         mkfifo "${pipe}"
 
         cd "${__crt__status_dir}/meta"
+        # shellcheck disable=SC2035
         tail -f * >> "${pipe}" &
         __crt__meta_collector_pids=($!)
 
@@ -547,7 +555,7 @@ concurrent() (
 
     __crt__args__task_delimiter=${1}
 
-    __crt__args__is_task_flag()        { [[ "${1}" == ${__crt__args__task_delimiter} ]]; }
+    __crt__args__is_task_flag()        { [[ "${1}" == "${__crt__args__task_delimiter}" ]]; }
     __crt__args__is_require_flag()     { [[ "${1}" == "--require"     ]]; }
     __crt__args__is_require_all_flag() { [[ "${1}" == "--require-all" ]]; }
     __crt__args__is_before_flag()      { [[ "${1}" == "--before"      ]]; }
@@ -566,7 +574,7 @@ concurrent() (
         local array_name="${2}[@]"
         local i
         for i in "${!array_name}"; do
-            if [[ "${i}" == ${item_to_find} ]]; then return 0; fi
+            if [[ "${i}" == "${item_to_find}" ]]; then return 0; fi
         done
         return 1
     }
@@ -715,7 +723,7 @@ concurrent() (
 
         while true; do
             start_allowed_tasks
-            [[ "${#started[@]}" != ${__crt__task_count} ]] || break
+            [[ "${#started[@]}" != "${__crt__task_count}" ]] || break
             [[ "${tasks_started}" -gt 0 ]] || __crt__error "detected requirement loop"
         done
     )
@@ -784,6 +792,7 @@ concurrent() (
     trap __crt__handle_sigint INT
 
     if __crt__is_dry_run; then
+        # shellcheck disable=SC2016
         echo '>>> DRY RUN (concurrent): The "$CONCURRENT_DRY_RUN" environment variable is set. <<<'
     fi
     __crt__start_meta_monitor

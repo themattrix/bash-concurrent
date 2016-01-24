@@ -2,6 +2,7 @@
 
 set -e -o pipefail
 
+# shellcheck source=concurrent.lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/concurrent.lib.sh"
 
 success() {
@@ -38,14 +39,14 @@ success() {
 
 failure() {
     local args=(
-        - "Creating VM"                                         create_vm 3.0
-        - "Creating ramdisk"                                    my_sleep 0.1
-        - "Enabling swap"                                       my_sleep 0.1
+        - "Creating VM"                                         create_vm    3.0
+        - "Creating ramdisk"                                    my_sleep     0.1
+        - "Enabling swap"                                       my_sleep     0.1
         - "Populating VM with world data"                       restore_data 0.0 64
-        - "Spigot: Pulling docker image for build"              my_sleep 0.5 128
-        - "Spigot: Building JAR"                                my_sleep 6.0
-        - "Pulling remaining docker images"                     my_sleep 2.0
-        - "Launching services"                                  my_sleep 0.2
+        - "Spigot: Pulling docker image for build"              my_sleep     0.5 128
+        - "Spigot: Building JAR"                                my_sleep     6.0
+        - "Pulling remaining docker images"                     my_sleep     2.0
+        - "Launching services"                                  my_sleep     0.2
 
         --require "Creating VM"
         --before  "Creating ramdisk"
