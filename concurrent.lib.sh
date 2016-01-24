@@ -40,6 +40,13 @@ concurrent() (
               - 'My medium task' sleep 5  \\
               - 'My short task'  sleep 1
 
+          # Run three tasks sequentially.
+          concurrent \\
+              - 'My long task'   sleep 10 \\
+              - 'My medium task' sleep 5  \\
+              - 'My short task'  sleep 1  \\
+              --sequential
+
           # Start the medium task *after* the short task succeeds.
           concurrent \\
               - 'My long task'   sleep 10 \\
@@ -120,6 +127,7 @@ concurrent() (
     #
     # General Utilities
     #
+
     __crt__error() {
         echo "ERROR (concurrent): ${1}" 1>&2
         exit 1
@@ -203,7 +211,7 @@ concurrent() (
     }
 
     __crt__draw_running_status() {
-        echo -en "${__crt__running_status_frames[${__crt__running_status_current_frame}]}"
+        printf "${__crt__running_status_frames[${__crt__running_status_current_frame}]}"
     }
 
     __crt__draw_initial_tasks() {
@@ -219,10 +227,10 @@ concurrent() (
         tput rc
         [[ "${index}" -eq 0 ]] || tput cud "${index}"
         if   [[ "${code}" == "running" ]]; then __crt__draw_running_status
-        elif [[ "${code}" == "int"     ]]; then echo -en " ${__crt__txtred}SIGINT${__crt__txtrst} "
-        elif [[ "${code}" == "skip"    ]]; then echo -en " ${__crt__txtylw} SKIP ${__crt__txtrst} "
-        elif [[ "${code}" == "0"       ]]; then echo -en " ${__crt__txtgrn}  OK  ${__crt__txtrst} "
-        else                                    echo -en " ${__crt__txtred}FAILED${__crt__txtrst} "
+        elif [[ "${code}" == "int"     ]]; then printf " ${__crt__txtred}SIGINT${__crt__txtrst} "
+        elif [[ "${code}" == "skip"    ]]; then printf " ${__crt__txtylw} SKIP ${__crt__txtrst} "
+        elif [[ "${code}" == "0"       ]]; then printf " ${__crt__txtgrn}  OK  ${__crt__txtrst} "
+        else                                    printf " ${__crt__txtred}FAILED${__crt__txtrst} "
         fi
         tput rc
     }
