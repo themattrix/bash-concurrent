@@ -6,7 +6,6 @@ before_install:
   - sudo apt-get update -q
   - sudo apt-get install cabal-install -y
   - cabal update
-  - cabal install shellcheck
+  - cabal install shellcheck-0.4.3
 script:
-  - ~/.cabal/bin/shellcheck concurrent.lib.sh
-  - ~/.cabal/bin/shellcheck demo.sh
+  - ~/.cabal/bin/shellcheck *.sh
