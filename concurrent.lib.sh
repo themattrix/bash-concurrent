@@ -38,7 +38,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 2.0.0'
+    __crt__help__version='concurrent 2.0.1'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
