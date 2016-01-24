@@ -361,8 +361,7 @@ concurrent() (
     __crt__mark_task_with_code() {
         local task=${1}
         local code=${2}
-        mv -- "${__crt__status_dir}/${task}"{,.done."${code}"}
-        echo "task:${task}:${code}" >> "${__crt__status_fifo}"
+        echo "task:${task}:${code}" >> "${__crt__event_pipe}"
     }
 
     __crt__task_runner() (
@@ -373,15 +372,13 @@ concurrent() (
         # $3: status dir
         set -- "${1}" "command_${1}[@]" "${__crt__status_dir}"
 
-        __crt__sigint_handler() {
+        __crt__handle_sigint() {
             __crt__mark_task_with_code "${1}" int
-            trap INT      # reset the signal handler
-            kill -INT $$  # re-raise the signal
-            exit 255      # do not continue this task
+            __crt__exit_by_signal INT
         }
 
         # shellcheck disable=SC2064
-        trap "__crt__sigint_handler ${1}" INT
+        trap "__crt__handle_sigint ${1}" INT
 
         set +o errexit    # a failure of the command should not exit the task
         (
@@ -400,7 +397,6 @@ concurrent() (
 
     __crt__start_task() {
         __crt__task_runner "${1}" &
-        __crt__pids["${1}"]=$!
         __crt__started["${1}"]=true
         __crt__draw_status "${1}" running
     }
@@ -411,29 +407,24 @@ concurrent() (
         __crt__start_allowed_tasks
     }
 
-    __crt__stop_task() {
+    __crt__mark_task_as_interrupted() {
         __crt__started["${1}"]=true
         echo "[INTERRUPTED]" >> "${__crt__status_dir}/${1}"
-        __crt__hide_failure kill -INT "${__crt__pids[${1}]}"
     }
 
-    __crt__stop_all_tasks() {
+    __crt__mark_all_running_tasks_as_interrupted() {
         local i
-        local wait_for=()
         for (( i = 0; i < __crt__task_count; i++ )); do
             if __crt__is_task_running "${i}"; then
-                __crt__stop_task "${i}"
-                wait_for+=("${i}")
+                __crt__mark_task_as_interrupted "${i}"
             fi
-        done
-        for i in "${wait_for[@]}"; do
-            __crt__hide_failure wait "${__crt__pids[${i}]}"
         done
     }
 
     __crt__skip_task() {
         __crt__started["${1}"]=true
-        echo "[SKIPPED] Prereq '${2}' failed or was skipped" > "${__crt__status_dir}/${1}.done.skip"
+        echo "[SKIPPED] Prereq '${2}' failed or was skipped" > "${__crt__status_dir}/${1}"
+        __crt__mark_task_with_code "${1}" skip
     }
 
     __crt__start_allowed_tasks() {
@@ -445,66 +436,61 @@ concurrent() (
         done
     }
 
-    __crt__has_unseen_done_tasks() {
-        cd "${__crt__status_dir}"
-        compgen -G '*.done.*' > /dev/null
+    __crt__save_stdin_stream() {
+        exec 4<&0  # duplicate stdin stream to fd 4
+    }
+
+    __crt__restore_stdin_stream() {
+        exec 0<&4  # restore original stdin stream from fd 4
     }
 
     __crt__wait_for_all_tasks() {
-        local __crt__status
         __crt__start_animation_frame
-        exec 4<&0  # duplicate stdin stream to fd 4
+        __crt__save_stdin_stream
+        __crt__run_event_loop < "${__crt__event_pipe}"
+        __crt__status_cleanup
+        __crt__stop_animation
+        __crt__stop_meta_collector
+        wait  # wait for all (completed) tasks
+        __crt__restore_stdin_stream
+    }
+
+    __crt__run_event_loop() {
+        # Main event loop! Each line read from the event pipe is an event to
+        # handle. We can exit the loop once all tasks have completed.
+        local __crt__status
         while read -r __crt__status; do
             if [[ "${__crt__status}" == task:* ]]; then
-                __crt__manage_tasks
+                __crt__handle_done_task "${__crt__status#task:}"
+                if __crt__are_all_tasks_done; then
+                    break
+                fi
             elif [[ "${__crt__status}" == anim:* ]]; then
                 __crt__start_animation_frame
             elif [[ "${__crt__status}" == meta:* ]]; then
                 __crt__manage_meta "${__crt__status#meta:}"
             fi
-            if __crt__are_all_tasks_done; then
-                break
-            fi
-        done < "${__crt__status_fifo}"  # replace stdin stream with fifo
-        __crt__status_cleanup
-        __crt__stop_animation
-        __crt__stop_meta_collector
-        wait
-        exec 0<&4  # restore original stdin stream from fd 4
-    }
-
-    __crt__manage_tasks() {
-        cd "${__crt__status_dir}"
-        local __crt__f
-        while __crt__has_unseen_done_tasks; do
-            for __crt__f in *.done.*; do
-                __crt__handle_done_task "${__crt__f}"
-            done
-            __crt__start_allowed_tasks
         done
     }
 
     __crt__handle_done_task() {
-        local filename=${1}
-        local index=${filename%%.*}
-        local code=${filename##*.}
+        local index=${1%%:*}
+        local code=${1#*:}
         __crt__codes["${index}"]=${code}
         __crt__draw_status "${index}" "${code}"
-        >> "${filename}"  # ensure file exists
-        cp -- "${filename}" "${__crt__log_dir}/${index}. ${__crt__names[${index}]//\//-} (${code}).log"
-        mv -- "${filename}" "${index}"
+        cp -- "${__crt__status_dir}/${index}" "${__crt__log_dir}/${index}. ${__crt__names[${index}]//\//-} (${code}).log"
         if [[ "${code}" != "0" ]]; then
             __crt__final_status=1
         fi
+        __crt__start_allowed_tasks
     }
 
     __crt__start_animation_frame() {
         __crt__update_running_status_frames
         {
             sleep "${__crt__seconds_between_frames}"
-            echo "anim:" >> "${__crt__status_fifo}"
+            echo "anim:" >> "${__crt__event_pipe}"
         } &
-
         __crt__animation_pid=$!
     }
 
@@ -533,7 +519,7 @@ concurrent() (
         "${__crt__sed}" -n -u -e '
             /^$/{b}
             /^==> .* <==$/{s/^==> //;s/ <==$//;h;b}
-            G;s/\(.*\)\n\(.*\)/meta:\2:\1/p' "${pipe}" >> "${__crt__status_fifo}" &
+            G;s/\(.*\)\n\(.*\)/meta:\2:\1/p' "${pipe}" >> "${__crt__event_pipe}" &
         __crt__meta_collector_pids+=($!)
     }
 
@@ -557,7 +543,6 @@ concurrent() (
     __crt__meta=()         # metadata strings by index
     __crt__codes=()        # task exit codes (unset, 0-255, 'skip', or 'int') by index
     __crt__started=()      # task started status (unset or 'true') by index
-    __crt__pids=()         # command pids by index
     __crt__task_count=0    # total number of tasks
     __crt__final_status=0  # 0 if all tasks succeeded, 1 otherwise
 
@@ -779,31 +764,48 @@ concurrent() (
     # Signal Handling/General Cleanup
     #
 
+    __crt__exit_by_signal() {
+        # Proper sigint handling: http://www.cons.org/cracauer/sigint.html
+        local signal=${1}
+        # shellcheck disable=SC2064
+        trap "${signal}"         # reset the signal
+        kill "-${signal}" -- $$  # re-raise the signal
+        exit 255                 # don't resume the script
+    }
+
     __crt__handle_exit() {
         rm -rf "${__crt__status_dir}"
-        __crt__enable_echo
+        __crt__hide_failure __crt__restore_stdin_stream
+        __crt__hide_failure __crt__enable_echo
     }
 
     __crt__handle_sigint() {
-        cat > /dev/null & draino=$!
-        exec 0<&4     # restore original stdin stream
+        # A few things to note at this point:
+        # - Since the main event loop was (likely) interrupted, fd 0 is still
+        #   pointing at the named pipe instead of stdin. This is great news,
+        #   because we need to finish reading from it to process the remaining
+        #   tasks anyway.
+        # - Bash should have sent SIGINT to the entire process group, which
+        #   includes all of the background processes. Each task handles the
+        #   signal and writes a message to the event named pipe.
+
+        # Make sure to perform the final cleanup steps even if this handler
+        # unexpectedly explodes.
         trap __crt__handle_exit EXIT
-        __crt__stop_all_tasks
-        __crt__manage_tasks
+
+        __crt__mark_all_running_tasks_as_interrupted
+        __crt__run_event_loop
         __crt__status_cleanup
         __crt__stop_animation
         __crt__stop_meta_collector
-        __crt__hide_failure wait "${draino}"
-        wait
-        trap INT      # reset the signal
-        kill -INT $$  # re-raise the signal
-        exit 255      # don't resume the script
+        __crt__hide_failure wait
+        __crt__exit_by_signal INT
     }
 
     __crt__disable_echo || __crt__error 'Must be run in the foreground of an interactive shell!'
     __crt__status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXX")
-    __crt__status_fifo="${__crt__status_dir}/status"
-    mkfifo "${__crt__status_fifo}"
+    __crt__event_pipe="${__crt__status_dir}/event-pipe"
+    mkfifo "${__crt__event_pipe}"
 
     trap __crt__handle_exit EXIT
     trap __crt__handle_sigint INT
