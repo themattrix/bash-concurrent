@@ -211,6 +211,7 @@ concurrent() (
     }
 
     __crt__draw_running_status() {
+        # shellcheck disable=SC2059
         printf "${__crt__running_status_frames[${__crt__running_status_current_frame}]}"
     }
 
@@ -227,10 +228,10 @@ concurrent() (
         tput rc
         [[ "${index}" -eq 0 ]] || tput cud "${index}"
         if   [[ "${code}" == "running" ]]; then __crt__draw_running_status
-        elif [[ "${code}" == "int"     ]]; then printf " ${__crt__txtred}SIGINT${__crt__txtrst} "
-        elif [[ "${code}" == "skip"    ]]; then printf " ${__crt__txtylw} SKIP ${__crt__txtrst} "
-        elif [[ "${code}" == "0"       ]]; then printf " ${__crt__txtgrn}  OK  ${__crt__txtrst} "
-        else                                    printf " ${__crt__txtred}FAILED${__crt__txtrst} "
+        elif [[ "${code}" == "int"     ]]; then printf " ${__crt__txtred}%s${__crt__txtrst} " 'SIGINT'
+        elif [[ "${code}" == "skip"    ]]; then printf " ${__crt__txtylw}%s${__crt__txtrst} " ' SKIP '
+        elif [[ "${code}" == "0"       ]]; then printf " ${__crt__txtgrn}%s${__crt__txtrst} " '  OK  '
+        else                                    printf " ${__crt__txtred}%s${__crt__txtrst} " 'FAILED'
         fi
         tput rc
     }
