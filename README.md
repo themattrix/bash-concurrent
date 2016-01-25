@@ -10,63 +10,63 @@ A Bash function to run tasks in parallel and display pretty output as they compl
 Run three tasks concurrently:
 
 ```bash
-concurrent \\
-    - 'My long task'   sleep 10 \\
-    - 'My medium task' sleep 5  \\
+concurrent \
+    - 'My long task'   sleep 10 \
+    - 'My medium task' sleep 5  \
     - 'My short task'  sleep 1
 ```
 
 Run three tasks sequentially:
 
 ```bash
-concurrent \\
-    - 'My long task'   sleep 10 \\
-    - 'My medium task' sleep 5  \\
-    - 'My short task'  sleep 1  \\
+concurrent \
+    - 'My long task'   sleep 10 \
+    - 'My medium task' sleep 5  \
+    - 'My short task'  sleep 1  \
     --sequential
 ```
 
 Start the medium task *after* the short task succeeds:
 
 ```bash
-concurrent \\
-    - 'My long task'   sleep 10 \\
-    - 'My medium task' sleep 5  \\
-    - 'My short task'  sleep 1  \\
-    --require 'My short task'   \\
+concurrent \
+    - 'My long task'   sleep 10 \
+    - 'My medium task' sleep 5  \
+    - 'My short task'  sleep 1  \
+    --require 'My short task'   \
     --before  'My medium task'
 ```
 
 Start the short task after *both* other tasks succeed:
 
 ```bash
-concurrent \\
-    - 'My long task'   sleep 10 \\
-    - 'My medium task' sleep 5  \\
-    - 'My short task'  sleep 1  \\
-    --require 'My long task'    \\
-    --require 'My medium task'  \\
+concurrent \
+    - 'My long task'   sleep 10 \
+    - 'My medium task' sleep 5  \
+    - 'My short task'  sleep 1  \
+    --require 'My long task'    \
+    --require 'My medium task'  \
     --before  'My short task'
 ```
 
 Start the medium task *and* the long task after the short task succeeds:
 
 ```bash
-concurrent \\
-    - 'My long task'   sleep 10 \\
-    - 'My medium task' sleep 5  \\
-    - 'My short task'  sleep 1  \\
-    --require 'My short task'   \\
-    --before  'My medium task'  \\
+concurrent \
+    - 'My long task'   sleep 10 \
+    - 'My medium task' sleep 5  \
+    - 'My short task'  sleep 1  \
+    --require 'My short task'   \
+    --before  'My medium task'  \
     --before  'My long task'
 ```
 
 If your command has a `-` argument, you can use a different task delimiter:
 
 ```bash
-concurrent \\
-    + 'My long task'   wget -O - ... \\
-    + 'My medium task' sleep 5  \\
+concurrent \
+    + 'My long task'   wget -O - ... \
+    + 'My medium task' sleep 5  \
     + 'My short task'  sleep 1
 ```
 
