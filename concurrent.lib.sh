@@ -38,16 +38,15 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 2.0.1'
+    __crt__help__version='concurrent 2.1.0'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
         Usage:
           concurrent \\
-              (- TASK COMMAND [ARGS...])... \\
-              [--sequential | \\
-               [((--require TASK)...|--require-all) \\
-                ((--before TASK)...]...|--before-all)]
+              (- TASK COMMAND [ARGS...] | --and-then)... \\
+              [--sequential | [(--require-all | (--require TASK)...) \\
+                               ( --before-all | ( --before TASK)...)...]]
           concurrent -h | --help
           concurrent --version
 
@@ -55,6 +54,7 @@ concurrent() (
           -h --help                 Show this help.
           --version                 Show version.
           - TASK COMMAND [ARGS...]  Define a task named TASK for running COMMAND with ARGS.
+          --and-then                Insert between tasks to create groups of concurrent tasks.
           --sequential              Each task requires the previous task.
           --require TASK            Require a TASK to complete successfully...
           --before TASK             ...before another TASK.
@@ -543,6 +543,7 @@ concurrent() (
     __crt__meta=()         # metadata strings by index
     __crt__codes=()        # task exit codes (unset, 0-255, 'skip', or 'int') by index
     __crt__started=()      # task started status (unset or 'true') by index
+    __crt__groups=()       # array of task indexes before which --and-then flags were specified
     __crt__task_count=0    # total number of tasks
     __crt__final_status=0  # 0 if all tasks succeeded, 1 otherwise
 
@@ -558,6 +559,7 @@ concurrent() (
     __crt__args__task_delimiter=${1}
 
     __crt__args__is_task_flag()        { [[ "${1}" == "${__crt__args__task_delimiter}" ]]; }
+    __crt__args__is_group_flag()       { [[ "${1}" == "--and-then"    ]]; }
     __crt__args__is_require_flag()     { [[ "${1}" == "--require"     ]]; }
     __crt__args__is_require_all_flag() { [[ "${1}" == "--require-all" ]]; }
     __crt__args__is_before_flag()      { [[ "${1}" == "--before"      ]]; }
@@ -566,6 +568,7 @@ concurrent() (
 
     __crt__args__is_flag_starting_section() {
         __crt__args__is_task_flag "${1}" ||
+        __crt__args__is_group_flag "${1}" ||
         __crt__args__is_require_flag "${1}" ||
         __crt__args__is_require_all_flag "${1}" ||
         __crt__args__is_sequential_flag "${1}"
@@ -617,6 +620,13 @@ concurrent() (
         declare -g -a "command_${__crt__task_count}=(\"\${args[@]}\")"
         (( __crt__task_count++ )) || :
 
+        remaining_args=("${@}")
+    }
+
+    __crt__args__handle_group_flag() {
+        set -- "${remaining_args[@]}"
+        shift
+        __crt__groups+=("${__crt__task_count}")
         remaining_args=("${@}")
     }
 
@@ -692,6 +702,28 @@ concurrent() (
         remaining_args=("${@}")
     }
 
+    __crt__args__resolve_group_prereqs() {
+        local curr_index
+        local task_index
+        local curr_group
+        local next_group
+        local prev_group=0
+
+        # All tasks in group N are prereqs for all tasks in group N+1. If N+1
+        # does not exist, use the task count instead.
+        for (( curr_index = 0; curr_index < ${#__crt__groups[@]}; curr_index++ )); do
+            curr_group=${__crt__groups[${curr_index}]}
+            next_group=${__crt__groups[$(( curr_index + 1 ))]:-${__crt__task_count}}
+            for (( task_index = curr_group; task_index < next_group; task_index++ )); do
+                declare -g -a "prereqs_${task_index}=(\${prereqs_${task_index}[@]} {${prev_group}..$(( curr_group - 1 ))})"
+            done
+            prev_group=${curr_group}
+        done
+
+        # No longer need this array up in our business.
+        unset __crt__groups
+    }
+
     __crt__args__ensure_no_requirement_loops() (
         # We will do a lightweight dry-run through all of the tasks and make sure we
         # do not get stuck anywhere.
@@ -736,6 +768,8 @@ concurrent() (
         while (( ${#remaining_args} )); do
             if __crt__args__is_task_flag "${remaining_args[0]}"; then
                 __crt__args__handle_task_flag
+            elif __crt__args__is_group_flag "${remaining_args[0]}"; then
+                __crt__args__handle_group_flag
             elif __crt__args__is_require_flag "${remaining_args[0]}"; then
                 __crt__args__handle_require_flag
             elif __crt__args__is_require_all_flag "${remaining_args[0]}"; then
@@ -747,6 +781,7 @@ concurrent() (
             fi
         done
 
+        __crt__args__resolve_group_prereqs
         __crt__args__ensure_no_requirement_loops
         __crt__unset 'args'
     }

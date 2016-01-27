@@ -1,4 +1,4 @@
-# Concurrent ![version: 2.0.1](https://img.shields.io/badge/version-2.0.1-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
+# Concurrent ![version: 2.1.0](https://img.shields.io/badge/version-2.1.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -49,6 +49,16 @@ concurrent \
     --before  'My short task'
 ```
 
+Same as above, but shorter:
+
+```bash
+concurrent \
+    - 'My long task'   sleep 10 \
+    - 'My medium task' sleep 5  \
+    - 'My short task'  sleep 1  \
+    --require-all --before 'My short task'
+```
+
 Start the medium task *and* the long task after the short task succeeds:
 
 ```bash
@@ -59,6 +69,33 @@ concurrent \
     --require 'My short task'   \
     --before  'My medium task'  \
     --before  'My long task'
+```
+
+Same as above, but shorter:
+
+```bash
+concurrent \
+    - 'My long task'   sleep 10 \
+    - 'My medium task' sleep 5  \
+    - 'My short task'  sleep 1  \
+    --require 'My short task' --before-all
+```
+
+Run the first two tasks concurrently,
+*and then* the second two tasks concurrently,
+*and then* the final three tasks concurrently.
+
+```bash
+concurrent \
+    - 'Task 1'  sleep 3 \
+    - 'Task 2'  sleep 3 \
+    --and-then \
+    - 'Task 3'  sleep 3 \
+    - 'Task 4'  sleep 3 \
+    --and-then \
+    - 'Task 5'  sleep 3 \
+    - 'Task 6'  sleep 3 \
+    - 'Task 7'  sleep 3
 ```
 
 If your command has a `-` argument, you can use a different task delimiter:
@@ -118,6 +155,9 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 
 ## Change Log
 
+- **2.1.0**
+  - *New:* New `--and-then` flag for dividing tasks into groups. All tasks in a group run concurrently, but all must complete before the next group may start (inspiration: [fooshards on Reddit](https://www.reddit.com/r/programming/comments/42n64o/concurrent_bash_function_to_run_tasks_in_parallel/czbxnrh)).
+  - *Fix:* Removed extra backslashes in README (credit: [bloody-albatross on Reddit](https://www.reddit.com/r/programming/comments/42n64o/concurrent_bash_function_to_run_tasks_in_parallel/czbrtjg))
 - **2.0.1**
   - *Fix:* `kill` is a bash builtin (credit: @ScoreUnder)
   - *Fix:* Require GNU sed on OS X (credit: @kumon)
