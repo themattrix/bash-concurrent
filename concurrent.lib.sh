@@ -138,7 +138,7 @@ concurrent() (
     fi
 
     __crt__unset_env() {
-        # Unset all concurrent-related environment variables.
+        # Unset all concurrent-related configuration environment variables.
         unset CONCURRENT_DRY_RUN
     }
 
@@ -194,7 +194,7 @@ concurrent() (
     __crt__txtgrn='\e[0;32m' # Green
     __crt__txtylw='\e[0;33m' # Yellow
     __crt__txtblu='\e[0;34m' # Blue
-    __crt__bldwht='\e[1;37m' # White
+    __crt__txtbld='\e[1m'    # Bold
     __crt__txtrst='\e[0m'    # Text Reset
 
     __crt__seconds_between_frames=1.0
@@ -249,7 +249,7 @@ concurrent() (
         tput rc
         [[ "${index}" -eq 0 ]] || tput cud "${index}"
         tput cuf 8  # move past status
-        printf "%s ${__crt__bldwht}%s${__crt__txtrst}" "${__crt__names[${index}]}" "${__crt__meta[${index}]}"
+        printf "%s ${__crt__txtbld}%s${__crt__txtrst}" "${__crt__names[${index}]}" "${__crt__meta[${index}]}"
         tput rc
     }
 
@@ -837,6 +837,24 @@ concurrent() (
         __crt__exit_by_signal INT
     }
 
+    # Keep track of how far we're nested inside concurrent instances.
+    CONCURRENT_DEPTH=${CONCURRENT_DEPTH:--1}
+    (( CONCURRENT_DEPTH++ )) || :
+
+    # If we're nested inside a running instance of concurrent, disable the
+    # interactive statuses.
+    if [[ "${CONCURRENT_DEPTH}" -gt 0 ]]; then
+        __crt__enable_echo              () { :; }
+        __crt__disable_echo             () { :; }
+        __crt__draw_initial_tasks       () { :; }
+        __crt__move_cursor_to_first_task() { :; }
+        __crt__move_cursor_below_tasks  () { :; }
+        __crt__draw_status              () { :; }
+        __crt__draw_meta                () { :; }
+        __crt__stop_animation           () { :; }
+        __crt__start_animation          () { :; }
+    fi
+
     __crt__disable_echo || __crt__error 'Must be run in the foreground of an interactive shell!'
     __crt__status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXX")
     __crt__event_pipe="${__crt__status_dir}/event-pipe"
@@ -849,6 +867,7 @@ concurrent() (
         # shellcheck disable=SC2016
         echo '>>> DRY RUN (concurrent): The "$CONCURRENT_DRY_RUN" environment variable is set. <<<'
     fi
+
     __crt__start_meta_monitor
     __crt__start_all_tasks
     __crt__wait_for_all_tasks
