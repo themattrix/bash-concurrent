@@ -445,7 +445,7 @@ concurrent() (
     }
 
     __crt__wait_for_all_tasks() {
-        __crt__start_animation_frame
+        __crt__start_animation
         __crt__save_stdin_stream
         __crt__run_event_loop < "${__crt__event_pipe}"
         __crt__status_cleanup
@@ -466,7 +466,7 @@ concurrent() (
                     break
                 fi
             elif [[ "${__crt__status}" == anim:* ]]; then
-                __crt__start_animation_frame
+                __crt__update_running_status_frames
             elif [[ "${__crt__status}" == meta:* ]]; then
                 __crt__manage_meta "${__crt__status#meta:}"
             fi
@@ -485,12 +485,12 @@ concurrent() (
         __crt__start_allowed_tasks
     }
 
-    __crt__start_animation_frame() {
+    __crt__start_animation() {
         __crt__update_running_status_frames
-        {
+        while true; do
             sleep "${__crt__seconds_between_frames}"
             echo "anim:" >> "${__crt__event_pipe}"
-        } &
+        done &
         __crt__animation_pid=$!
     }
 
