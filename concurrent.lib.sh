@@ -449,7 +449,7 @@ concurrent() (
     __crt__run_event_loop() {
         # Main event loop! Each line read from the event pipe is an event to
         # handle. We can exit the loop once all tasks have completed.
-        local __crt__status
+        local __crt__event
         local __crt__tail_pipe="${__crt__status_dir}/tail-pipe"
 
         rm -f  "${__crt__tail_pipe}"
@@ -458,23 +458,23 @@ concurrent() (
         tail -n +0 -f "${__crt__event_pipe}" >> "${__crt__tail_pipe}" &
         __crt__tail_pid=$!
 
-        while read -r __crt__status; do
-            if [[ "${__crt__status}" == task:* ]]; then
-                __crt__handle_done_task "${__crt__status#task:}"
+        while read -r __crt__event; do
+            if [[ "${__crt__event}" == task:* ]]; then
+                __crt__handle_done_task "${__crt__event#task:}"
                 if __crt__are_all_tasks_done; then
                     break
                 fi
-            elif [[ "${__crt__status}" == anim:* ]]; then
+            elif [[ "${__crt__event}" == anim:* ]]; then
                 __crt__update_running_status_frames
-            elif [[ "${__crt__status}" == meta:* ]]; then
-                __crt__manage_meta "${__crt__status#meta:}"
+            elif [[ "${__crt__event}" == meta:* ]]; then
+                __crt__manage_meta "${__crt__event#meta:}"
             fi
         done < "${__crt__tail_pipe}"
 
-        __crt__clean_event_loop
+        __crt__cleanup_event_loop
     }
 
-    __crt__clean_event_loop() {
+    __crt__cleanup_event_loop() {
         if [[ -n "${__crt__tail_pid}" ]]; then
             __crt__hide_failure kill "${__crt__tail_pid}"
             __crt__hide_failure wait "${__crt__tail_pid}"
@@ -787,16 +787,7 @@ concurrent() (
     }
 
     __crt__handle_sigint() {
-        # A few things to note at this point:
-        # - Since the main event loop was (likely) interrupted, fd 0 is still
-        #   pointing at the named pipe instead of stdin. This is great news,
-        #   because we need to finish reading from it to process the remaining
-        #   tasks anyway.
-        # - Bash should have sent SIGINT to the entire process group, which
-        #   includes all of the background processes. Each task handles the
-        #   signal and writes a message to the event named pipe.
-
-        __crt__clean_event_loop
+        __crt__cleanup_event_loop
         __crt__mark_all_running_tasks_as_interrupted > "${__crt__event_pipe}"
         __crt__run_event_loop
         __crt__status_cleanup
