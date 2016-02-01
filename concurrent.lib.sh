@@ -26,14 +26,6 @@ concurrent() (
         __crt__error "Requires Bash version 4.2 for 'declare -g' (you have ${BASH_VERSION:-a different shell})"
     fi
 
-    if sed --version &> /dev/null; then  # BSD sed has no --version
-        __crt__sed='sed'
-    elif gsed --version &> /dev/null; then
-        __crt__sed='gsed'
-    else
-        __crt__error "Requires GNU sed"
-    fi
-
     #
     # Help and Usage
     #
@@ -107,7 +99,7 @@ concurrent() (
               + 'My short task'  sleep 1
 
         Requirements:
-          bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed (gsed for OS X), tail, tput
+          bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed, tail, tput
 
         Author:
           Matthew Tardiff <mattrix@gmail.com>
@@ -122,7 +114,7 @@ concurrent() (
           https://github.com/themattrix/bash-concurrent"
 
     __crt__help__display_usage_and_exit() {
-       "${__crt__sed}" 's/^        //' <<< "${__crt__help__usage}"
+       sed 's/^        //' <<< "${__crt__help__usage}"
        exit 0
     }
 
@@ -205,7 +197,7 @@ concurrent() (
     )
 
     __crt__indent() {
-        "${__crt__sed}" 's/^/    /' "${@}"
+        sed 's/^/    /' "${@}"
     }
 
     __crt__move_cursor_to_first_task() {
@@ -270,13 +262,12 @@ concurrent() (
         local i
         for (( i = 0; i < __crt__task_count; i++ )); do
             if [[ "${__crt__codes[${i}]}" != '0' ]]; then
-                echo
-                echo "['${__crt__names[${i}]}' failed with exit status ${__crt__codes[${i}]}]"
+                printf "\n['%s' failed with exit status %s]\n" "${__crt__names[${i}]}" "${__crt__codes[${i}]}"
                 __crt__indent "${i}"
             fi
         done
-        if [[ "${__crt__final_status}" != "0" ]]; then
-            printf '\nLogs for all tasks can be found in:\n    %s\n' "${__crt__log_dir}/"
+        if [[ "${__crt__final_status}" != "0" && "${CONCURRENT_DEPTH}" -eq 0 ]]; then
+            printf '\nLogs for all tasks can be found in:\n    %s\n' "${CONCURRENT_LOG_DIR}/"
         fi
     }
 
@@ -292,7 +283,7 @@ concurrent() (
     }
 
     __crt__status_cleanup() {
-        trap INT  # no longer need special sigint handling
+        trap -- - INT  # no longer need special sigint handling
         __crt__move_cursor_below_tasks
         __crt__print_failures
     }
@@ -367,30 +358,30 @@ concurrent() (
     __crt__task_runner() (
         # Do not create real variables for these so that they do not override
         # names from the parent script.
-        # $1: task
+        # $1: task index
         # $2: command args array
         # $3: status dir
-        set -- "${1}" "command_${1}[@]" "${__crt__status_dir}"
+        # $4: event pipe
+        set -- "${1}" "command_${1}[@]" "${__crt__status_dir}" "${__crt__event_pipe}"
 
-        __crt__handle_sigint() {
-            __crt__mark_task_with_code "${1}" int
-            __crt__exit_by_signal INT
-        }
+        # Reset any existing signal handlers.
+        trap -- - INT EXIT
 
-        # shellcheck disable=SC2064
-        trap "__crt__handle_sigint ${1}" INT
+        # Allow nested tasks to refer to parent tasks.
+        CONCURRENT_TASK_NAME+=("${__crt__names[${1}]}")
 
-        set +o errexit    # a failure of the command should not exit the task
+        set +o errexit  # a failure of the command should not exit the task
         (
             __crt__set_original_pwd
             __crt__set_original_shell_options
             __crt__unset_env
             __crt__unset
-            "${!2}" &> "${3}/${1}" 3>> "${3}/meta/${1}"
+            "${!2}" 3>&1 &> "${3}/${1}" | while read -r meta; do
+                printf "meta:%d:%s\n" "${1}" "${meta}" >> "${4}"
+            done
         )
         code=$?
-        set -o errexit    # but other failures should
-        trap INT          # reset the signal handler
+        set -o errexit  # ...but other failures should
 
         __crt__mark_task_with_code "${1}" "${code}"
     )
@@ -409,7 +400,8 @@ concurrent() (
 
     __crt__mark_task_as_interrupted() {
         __crt__started["${1}"]=true
-        echo "[INTERRUPTED]" >> "${__crt__status_dir}/${1}"
+        printf '[INTERRUPTED]\n' >> "${__crt__status_dir}/${1}"
+        printf 'task:%d:int\n' "${1}"
     }
 
     __crt__mark_all_running_tasks_as_interrupted() {
@@ -447,10 +439,9 @@ concurrent() (
     __crt__wait_for_all_tasks() {
         __crt__start_animation
         __crt__save_stdin_stream
-        __crt__run_event_loop < "${__crt__event_pipe}"
+        __crt__run_event_loop
         __crt__status_cleanup
         __crt__stop_animation
-        __crt__stop_meta_collector
         wait  # wait for all (completed) tasks
         __crt__restore_stdin_stream
     }
@@ -459,6 +450,14 @@ concurrent() (
         # Main event loop! Each line read from the event pipe is an event to
         # handle. We can exit the loop once all tasks have completed.
         local __crt__status
+        local __crt__tail_pipe="${__crt__status_dir}/tail-pipe"
+
+        rm -f  "${__crt__tail_pipe}"
+        mkfifo "${__crt__tail_pipe}"
+
+        tail -n +0 -f "${__crt__event_pipe}" >> "${__crt__tail_pipe}" &
+        __crt__tail_pid=$!
+
         while read -r __crt__status; do
             if [[ "${__crt__status}" == task:* ]]; then
                 __crt__handle_done_task "${__crt__status#task:}"
@@ -470,7 +469,16 @@ concurrent() (
             elif [[ "${__crt__status}" == meta:* ]]; then
                 __crt__manage_meta "${__crt__status#meta:}"
             fi
-        done
+        done < "${__crt__tail_pipe}"
+
+        __crt__clean_event_loop
+    }
+
+    __crt__clean_event_loop() {
+        if [[ -n "${__crt__tail_pid}" ]]; then
+            __crt__hide_failure kill "${__crt__tail_pid}"
+            __crt__hide_failure wait "${__crt__tail_pid}"
+        fi
     }
 
     __crt__handle_done_task() {
@@ -478,7 +486,7 @@ concurrent() (
         local code=${1#*:}
         __crt__codes["${index}"]=${code}
         __crt__draw_status "${index}" "${code}"
-        cp -- "${__crt__status_dir}/${index}" "${__crt__log_dir}/${index}. ${__crt__names[${index}]//\//-} (${code}).log"
+        cp -- "${__crt__status_dir}/${index}" "${CONCURRENT_LOG_DIR}/${index}. ${__crt__names[${index}]//\//-} (${code}).log"
         if [[ "${code}" != "0" ]]; then
             __crt__final_status=1
         fi
@@ -497,35 +505,6 @@ concurrent() (
     __crt__stop_animation() {
         __crt__hide_failure kill "${__crt__animation_pid}"
         __crt__hide_failure wait "${__crt__animation_pid}"
-    }
-
-    __crt__start_meta_monitor() {
-        # Initialize meta files. This gives tail something to monitor.
-        mkdir "${__crt__status_dir}/meta"
-
-        local i
-        for (( i = 0; i < __crt__task_count; i++ )); do
-            > "${__crt__status_dir}/meta/${i}"
-        done
-
-        local pipe="${__crt__status_dir}/pipe0"
-        mkfifo "${pipe}"
-
-        cd "${__crt__status_dir}/meta"
-        # shellcheck disable=SC2035
-        tail -f * >> "${pipe}" &
-        __crt__meta_collector_pids=($!)
-
-        "${__crt__sed}" -n -u -e '
-            /^$/{b}
-            /^==> .* <==$/{s/^==> //;s/ <==$//;h;b}
-            G;s/\(.*\)\n\(.*\)/meta:\2:\1/p' "${pipe}" >> "${__crt__event_pipe}" &
-        __crt__meta_collector_pids+=($!)
-    }
-
-    __crt__stop_meta_collector() {
-        __crt__hide_failure kill "${__crt__meta_collector_pids[@]}"
-        __crt__hide_failure wait "${__crt__meta_collector_pids[@]}"
     }
 
     __crt__manage_meta() {
@@ -789,13 +768,6 @@ concurrent() (
     __crt__args__parse "${@}"
 
     #
-    # Logging
-    #
-
-    __crt__log_dir="${PWD}/.logs/$(date +'%F@%T')"
-    mkdir -p "${__crt__log_dir}"
-
-    #
     # Signal Handling/General Cleanup
     #
 
@@ -803,7 +775,7 @@ concurrent() (
         # Proper sigint handling: http://www.cons.org/cracauer/sigint.html
         local signal=${1}
         # shellcheck disable=SC2064
-        trap "${signal}"         # reset the signal
+        trap -- - "${signal}"    # reset the signal
         kill "-${signal}" -- $$  # re-raise the signal
         exit 255                 # don't resume the script
     }
@@ -824,15 +796,11 @@ concurrent() (
         #   includes all of the background processes. Each task handles the
         #   signal and writes a message to the event named pipe.
 
-        # Make sure to perform the final cleanup steps even if this handler
-        # unexpectedly explodes.
-        trap __crt__handle_exit EXIT
-
-        __crt__mark_all_running_tasks_as_interrupted
+        __crt__clean_event_loop
+        __crt__mark_all_running_tasks_as_interrupted > "${__crt__event_pipe}"
         __crt__run_event_loop
         __crt__status_cleanup
         __crt__stop_animation
-        __crt__stop_meta_collector
         __crt__hide_failure wait
         __crt__exit_by_signal INT
     }
@@ -841,34 +809,36 @@ concurrent() (
     CONCURRENT_DEPTH=${CONCURRENT_DEPTH:--1}
     (( CONCURRENT_DEPTH++ )) || :
 
-    # If we're nested inside a running instance of concurrent, disable the
-    # interactive statuses.
     if [[ "${CONCURRENT_DEPTH}" -gt 0 ]]; then
-        __crt__enable_echo              () { :; }
-        __crt__disable_echo             () { :; }
-        __crt__draw_initial_tasks       () { :; }
-        __crt__move_cursor_to_first_task() { :; }
-        __crt__move_cursor_below_tasks  () { :; }
-        __crt__draw_status              () { :; }
-        __crt__draw_meta                () { :; }
-        __crt__stop_animation           () { :; }
-        __crt__start_animation          () { :; }
+        # If we're nested inside a running instance of concurrent, disable the
+        # interactive statuses.
+        __crt__enable_echo               () { :; }
+        __crt__disable_echo              () { :; }
+        __crt__draw_initial_tasks        () { :; }
+        __crt__move_cursor_to_first_task () { :; }
+        __crt__move_cursor_below_tasks   () { :; }
+        __crt__draw_status               () { :; }
+        __crt__draw_meta                 () { :; }
+        __crt__start_animation           () { :; }
+        __crt__stop_animation            () { :; }
     fi
+
+    CONCURRENT_LOG_DIR=${CONCURRENT_LOG_DIR:-${PWD}/.logs/$(date +'%F@%T')}
+    mkdir -p "${CONCURRENT_LOG_DIR}"
 
     __crt__disable_echo || __crt__error 'Must be run in the foreground of an interactive shell!'
     __crt__status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXX")
     __crt__event_pipe="${__crt__status_dir}/event-pipe"
-    mkfifo "${__crt__event_pipe}"
+    > "${__crt__event_pipe}"
 
-    trap __crt__handle_exit EXIT
-    trap __crt__handle_sigint INT
+    trap -- __crt__handle_exit EXIT
+    trap -- __crt__handle_sigint INT
 
     if __crt__is_dry_run; then
         # shellcheck disable=SC2016
         echo '>>> DRY RUN (concurrent): The "$CONCURRENT_DRY_RUN" environment variable is set. <<<'
     fi
 
-    __crt__start_meta_monitor
     __crt__start_all_tasks
     __crt__wait_for_all_tasks
 
