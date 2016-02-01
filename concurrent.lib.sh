@@ -510,7 +510,7 @@ concurrent() (
     __crt__manage_meta() {
         local index=${1%%:*}
         local meta=${1#*:}
-        __crt__meta["${index}"]+=${meta}
+        __crt__meta["${index}"]=${meta}
         __crt__draw_meta "${index}"
     }
 
