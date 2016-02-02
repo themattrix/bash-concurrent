@@ -37,20 +37,6 @@ success() {
     concurrent "${args[@]}"
 }
 
-nesting() {
-    local args=(
-        - "Task A1"               my_sleep 2.0
-        - "Task A2"               concurrent
-            -- "Task B1"          concurrent
-                --- "Task C1"     my_sleep 1.0
-                --- "Task C2"     my_sleep 2.0 1
-            -- "Task B2"          my_sleep 3.0
-        - "Task A3"               my_sleep 4.0
-    )
-
-    concurrent "${args[@]}"
-}
-
 failure() {
     local args=(
         - "Creating VM"                                         create_vm    3.0
@@ -78,6 +64,34 @@ failure() {
         --require "Spigot: Building JAR"
         --require "Pulling remaining docker images"
         --before  "Launching services"
+    )
+
+    concurrent "${args[@]}"
+}
+
+nesting_success() {
+    local args=(
+        - "Task A1"               my_sleep 2.0
+        - "Task A2"               concurrent
+            -- "Task B1"          concurrent
+                --- "Task C1"     my_sleep 1.0
+                --- "Task C2"     my_sleep 2.0
+            -- "Task B2"          my_sleep 3.0
+        - "Task A3"               my_sleep 4.0
+    )
+
+    concurrent "${args[@]}"
+}
+
+nesting_failure() {
+    local args=(
+        - "Task A1"               my_sleep 2.0
+        - "Task A2"               concurrent
+            -- "Task B1"          concurrent
+                --- "Task C1"     my_sleep 1.0
+                --- "Task C2"     my_sleep 2.0 1
+            -- "Task B2"          my_sleep 3.0
+        - "Task A3"               my_sleep 4.0
     )
 
     concurrent "${args[@]}"
