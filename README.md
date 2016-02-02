@@ -1,4 +1,4 @@
-# Concurrent ![version: 2.1.0](https://img.shields.io/badge/version-2.1.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
+# Concurrent ![version: 2.2.0](https://img.shields.io/badge/version-2.2.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -128,6 +128,25 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 `CONCURRENT_DRY_RUN` environment variable to perform a dry-run.
 
 
+## Logging
+
+By default, logs for each task will be created in `./logs/<timestamp>/`.
+For example:
+
+    $ ls .logs/2016-02-02@00:09:07
+    0. Creating VM (0).log
+    1. Creating ramdisk (0).log
+    2. Enabling swap (0).log
+    3. Populating VM with world data (1).log
+    4. Spigot: Pulling docker image for build (1).log
+    5. Spigot: Building JAR (skip).log
+    6. Pulling remaining docker images (skip).log
+    7. Launching services (skip).log
+
+
+To change this directory, set `CONCURRENT_LOG_DIR` before calling `concurrent`.
+
+
 ## Failure Demo
 
 [![asciicast](https://asciinema.org/a/34217.png)](https://asciinema.org/a/34217)
@@ -148,13 +167,20 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 - mkfifo
 - mktemp
 - mv
-- sed (gsed for OS X)
+- sed
 - tail
 - tput
 
 
 ## Change Log
 
+- **2.2.0**
+  - *New:* Instances of concurrent can be nested without breaking.
+  - *New:* Set custom log dir with `CONCURRENT_LOG_DIR`.
+  - *Fix:* Works under Cygwin (special thanks to @FredDeschenes).
+  - *Fix:* No longer requires GNU sed (gsed) on OS X.
+  - *Fix:* Animation now uses a single process.
+  - *Fix:* Extra status info is now merely bold instead of bold/white, which should be more visible on light terminal backgrounds.
 - **2.1.0**
   - *New:* New `--and-then` flag for dividing tasks into groups. All tasks in a group run concurrently, but all must complete before the next group may start (inspiration: [fooshards on Reddit](https://www.reddit.com/r/programming/comments/42n64o/concurrent_bash_function_to_run_tasks_in_parallel/czbxnrh)).
   - *Fix:* Removed extra backslashes in README (credit: [bloody-albatross on Reddit](https://www.reddit.com/r/programming/comments/42n64o/concurrent_bash_function_to_run_tasks_in_parallel/czbrtjg))
