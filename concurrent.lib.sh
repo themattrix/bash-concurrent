@@ -369,6 +369,7 @@ concurrent() (
 
         # Allow nested tasks to refer to parent tasks.
         CONCURRENT_TASK_NAME+=("${__crt__names[${1}]}")
+        export CONCURRENT_TASK_NAME
 
         set +o errexit  # a failure of the command should not exit the task
         (
@@ -797,7 +798,7 @@ concurrent() (
     }
 
     # Keep track of how far we're nested inside concurrent instances.
-    CONCURRENT_DEPTH=${CONCURRENT_DEPTH:--1}
+    export CONCURRENT_DEPTH=${CONCURRENT_DEPTH:--1}
     (( CONCURRENT_DEPTH++ )) || :
 
     if [[ "${CONCURRENT_DEPTH}" -gt 0 ]]; then
@@ -814,7 +815,7 @@ concurrent() (
         __crt__stop_animation            () { :; }
     fi
 
-    CONCURRENT_LOG_DIR=${CONCURRENT_LOG_DIR:-${PWD}/.logs/$(date +'%F@%T')}
+    export CONCURRENT_LOG_DIR=${CONCURRENT_LOG_DIR:-${PWD}/.logs/$(date +'%F@%T')}
     mkdir -p "${CONCURRENT_LOG_DIR}"
 
     __crt__disable_echo || __crt__error 'Must be run in the foreground of an interactive shell!'
