@@ -30,7 +30,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 2.2.0'
+    __crt__help__version='concurrent 2.2.1'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -377,7 +377,7 @@ concurrent() (
             __crt__set_original_shell_options
             __crt__unset_env
             __crt__unset
-            "${!2}" 3>&1 &> "${3}/${1}" | while read -r meta; do
+            "${!2}" 3>&1 &> "${3}/${1}" < /dev/null | while read -r meta; do
                 printf "meta:%d:%s\n" "${1}" "${meta}" >> "${4}"
             done
         )
