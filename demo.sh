@@ -97,6 +97,17 @@ nesting_failure() {
     concurrent "${args[@]}"
 }
 
+many() {
+    local args=()
+    local i
+
+    for (( i = 1; i <= 300; i++ )); do
+        args+=(- "Task ${i}" my_sleep 3.0)
+    done
+
+    concurrent "${args[@]}"
+}
+
 create_vm() {
     local provider=digitalocean
     echo "(on ${provider})" >&3

@@ -30,7 +30,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 2.2.1'
+    __crt__help__version='concurrent 2.3.0'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -311,6 +311,10 @@ concurrent() (
         __crt__is_task_started "${1}" && ! __crt__is_task_done "${1}"
     }
 
+    __crt__is_under_concurrent_limit() {
+        [[ "${CONCURRENT_LIMIT}" -lt 1 || "${__crt__running_task_count}" -lt "${CONCURRENT_LIMIT}" ]]
+    }
+
     __crt__name_index() {
         local name=${1}
         local i
@@ -390,6 +394,7 @@ concurrent() (
     __crt__start_task() {
         __crt__task_runner "${1}" &
         __crt__started["${1}"]=true
+        (( __crt__running_task_count++ )) || :
         __crt__draw_status "${1}" running
     }
 
@@ -423,6 +428,7 @@ concurrent() (
     __crt__start_allowed_tasks() {
         local __crt__i
         for (( __crt__i = 0; __crt__i < __crt__task_count; __crt__i++ )); do
+            __crt__is_under_concurrent_limit || break
             if __crt__is_task_allowed_to_start "${__crt__i}"; then
                 __crt__start_task "${__crt__i}"
             fi
@@ -485,6 +491,9 @@ concurrent() (
     __crt__handle_done_task() {
         local index=${1%%:*}
         local code=${1#*:}
+        if [[ "${code}" != "skip" ]]; then
+            (( __crt__running_task_count-- )) || :
+        fi
         __crt__codes["${index}"]=${code}
         __crt__draw_status "${index}" "${code}"
         cp -- "${__crt__status_dir}/${index}" "${CONCURRENT_LOG_DIR}/${index}. ${__crt__names[${index}]//\//-} (${code}).log"
@@ -526,6 +535,10 @@ concurrent() (
     __crt__groups=()       # array of task indexes before which --and-then flags were specified
     __crt__task_count=0    # total number of tasks
     __crt__final_status=0  # 0 if all tasks succeeded, 1 otherwise
+
+    # Only allow this many tasks running at a time.
+    export CONCURRENT_LIMIT=${CONCURRENT_LIMIT:-50}
+    __crt__running_task_count=0
 
     # Arrays of command arguments by task index <T>:
     #   command_<T>=(...)
