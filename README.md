@@ -187,7 +187,10 @@ To change this directory, set `CONCURRENT_LOG_DIR` before calling `concurrent`.
 
 - **2.3.0**
   - *New:* Concurrency limit defaults to 50, unless overridden by `CONCURRENT_LIMIT`.
-  - ...
+  - *New:* If the number of tasks exceed the terminal height (or `CONCURRENT_COMPACT` is set), each task will be displayed as a single character instead of a taking up an entire line.
+  - *New:* Cursor now hidden while running.
+  - *Fix:* Greatly improved speed of event loop. Especially noticeable for large numbers of tasks.
+  - *Fix:* Namespaced `command_*` and `prereq_*` arrays so that they don't carry into the tasks.
 - **2.2.1**
   - *Fix:* Tasks not allowed to read from stdin.
 - **2.2.0**

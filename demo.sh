@@ -101,8 +101,8 @@ many() {
     local args=()
     local i
 
-    for (( i = 1; i <= 300; i++ )); do
-        args+=(- "Task ${i}" my_sleep 3.0)
+    for (( i = 0; i < 300; i++ )); do
+        args+=(- "Task ${i}" my_sleep $(( RANDOM % 5 + 1 )))
     done
 
     concurrent "${args[@]}"
