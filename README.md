@@ -139,6 +139,16 @@ run, but with existing tasks between dependencies taken into account.
 A limit less than 1 is treated as no limit.
 
 
+## Compact Display
+
+If the number of tasks exceed the terminal height, the "compact display" will
+be activated. It can also be explicitly activated by setting the
+`CONCURRENT_COMPACT` environment variable to anything other than `0`.
+
+In this mode, each task is represented by a single character instead of an
+entire line. An execution summary is displayed below the tasks.
+
+
 ## Logging
 
 By default, logs for each task will be created in `./logs/<timestamp>/`.

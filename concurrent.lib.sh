@@ -98,6 +98,35 @@ concurrent() (
               + 'My medium task' sleep 5  \\
               + 'My short task'  sleep 1
 
+        Settable Environment Variables:
+          CONCURRENT_DRY_RUN (default: unset)
+            Setting this to any non-empty value causes 'dry-run' mode to be enabled.
+            In this mode, all task commands are replaced with 'sleep 3'. This is useful
+            for testing that the dependencies between tasks are correctly specified.
+
+          CONCURRENT_LIMIT (default: 50)
+            Specifies the number of tasks which are allowed to be actively running at
+            any time. For unlimited concurrency, set this to an integer less than 1.
+
+          CONCURRENT_COMPACT (default: 0)
+            Setting this to a non-zero value causes the 'compact display' mode to be
+            activated. In this mode, each task is represented by a single character
+            instead of an entire line. This mode is automatically activated if the
+            number of tasks exceed the terminal height.
+
+          CONCURRENT_LOG_DIR (default: \$PWD/.logs/\$(date +'%F@%T'))
+            Optionally change the directory in which all tasks are logged.
+
+        Informational Environment Variables:
+          CONCURRENT_DEPTH
+            The current nesting depth of this 'concurrent' instance, starting at 0.
+
+          CONCURRENT_COMMAND
+            An array of the arguments being run for a task.
+
+          CONCURRENT_TASK_NAME
+            The name of the task being run.
+
         Requirements:
           bash >= 4.2, cat, cp, date, mkdir, mkfifo, mktemp, mv, sed, tail, tput
 
@@ -297,8 +326,16 @@ concurrent() (
     }
 
     __crt__mark_task_as_stopped() {
-        if [[ -z "${__crt__codes[${1}]}" ]]; then
+        local index=${1}
+        local code=${2}
+
+        if [[ -z "${__crt__codes[${index}]}" ]]; then
             (( __crt__running_task_count-- )) || :
+            if   [[ "${code}" == '0'    ]]; then (( __crt__success_task_count++ ))     || :
+            elif [[ "${code}" == 'skip' ]]; then (( __crt__skipped_task_count++ ))     || :
+            elif [[ "${code}" == 'int'  ]]; then (( __crt__interrupted_task_count++ )) || :
+            else                                 (( __crt__failure_task_count++ ))     || :
+            fi
         fi
     }
 
@@ -401,7 +438,7 @@ concurrent() (
     __crt__handle_done_task() {
         local index=${1%%:*}
         local code=${1#*:}
-        __crt__mark_task_as_stopped "${index}"
+        __crt__mark_task_as_stopped "${index}" "${code}"
         __crt__codes["${index}"]=${code}
         __crt__draw_status "${index}" "${code}"
         cp -- "${__crt__status_dir}/${index}" "${CONCURRENT_LOG_DIR}/${index}. ${__crt__names[${index}]//\//-} (${code}).log"
@@ -438,8 +475,8 @@ concurrent() (
 
     __crt__names=()        # task names by index
     __crt__meta=()         # metadata strings by index
-    __crt__codes=()        # task exit codes (unset, 0-255, 'skip', or 'int') by index
     __crt__pending=()      # indexes of tasks which haven't been started yet
+    __crt__codes=()        # task exit codes (unset, 0-255, 'skip', or 'int') by index
     __crt__groups=()       # array of task indexes before which --and-then flags were specified
     __crt__task_count=0    # total number of tasks
     __crt__final_status=0  # 0 if all tasks succeeded, 1 otherwise
@@ -448,6 +485,11 @@ concurrent() (
     # Only allow this many tasks running at a time.
     export CONCURRENT_LIMIT=${CONCURRENT_LIMIT:-50}
     __crt__running_task_count=0
+
+    __crt__success_task_count=0
+    __crt__failure_task_count=0
+    __crt__skipped_task_count=0
+    __crt__interrupted_task_count=0
 
     # Arrays of command arguments by task index <T>:
     #   __crt__command_<T>=(...)
@@ -704,24 +746,19 @@ concurrent() (
     export CONCURRENT_COMPACT=${CONCURRENT_COMPACT:-0}
 
     __crt__use_compact_status() {
-        [[ "${CONCURRENT_COMPACT}" != "0" || "${__crt__task_count}" -gt "$(tput lines)" ]]
+        [[ "${CONCURRENT_COMPACT}" != "0" || "${__crt__task_count}" -ge "$(tput lines)" ]]
     }
 
     if __crt__use_compact_status; then
-        __crt__term_cols=$(tput cols)
+        __crt__cols=$(tput cols)
 
-        if [[ "${__crt__term_cols}" -lt 50 ]]; then
-            __crt__cols=${__crt__term_cols}
-        else
-            __crt__cols=50
-        fi
+        __crt__draw_meta       () { :; }
+        __crt__start_animation () { :; }
+        __crt__stop_animation  () { :; }
+        __crt__print_failures  () { :; }
 
-        __crt__draw_meta          () { :; }
-        __crt__start_animation    () { :; }
-        __crt__stop_animation     () { :; }
-
-        __crt__draw_initial_tasks () {
-            local rows=$(( __crt__task_count / __crt__cols ))
+        __crt__draw_initial_tasks() {
+            local rows=$(( __crt__task_count / __crt__cols + 2 ))  # task lines + summary lines
             local row
             for (( row = 0; row < rows; row++ )); do echo; done
             [[ "${rows}" -eq 0 ]] || tput cuu "${rows}"
@@ -732,9 +769,25 @@ concurrent() (
             tput rc
         }
 
-        __crt__move_cursor_below_tasks() {
-            __crt__move_cursor_to_index "${__crt__task_count}"
-            [[ $(( __crt__task_count % __crt__cols )) -eq 0 ]] || echo
+        __crt__requires_newline_after_tasks() {
+            [[ $(( __crt__task_count % __crt__cols )) -ne 0 ]]
+        }
+
+        if __crt__requires_newline_after_tasks; then
+            __crt__move_cursor_below_tasks() {
+                __crt__move_cursor_to_index "${__crt__task_count}"
+                echo
+            }
+        else
+            __crt__move_cursor_below_tasks() {
+                __crt__move_cursor_to_index "${__crt__task_count}"
+            }
+        fi
+
+        __crt__move_cursor_below_status() {
+            __crt__move_cursor_below_tasks
+            echo
+            echo
         }
 
         __crt__move_cursor_to_index() {
@@ -752,16 +805,37 @@ concurrent() (
             __crt__move_cursor_to_index "${index}"
             __crt__draw_task "${code}"
             __crt__move_cursor_to_first_task
+            __crt__move_cursor_below_tasks
+            echo
+            __crt__draw_summary
+            __crt__move_cursor_to_first_task
         }
 
         __crt__draw_task() {
             local code=${1}
-            if   [[ "${code}" == "running" ]]; then printf "${__crt__txtblu}%c${__crt__txtrst}" '>'
-            elif [[ "${code}" == "0"       ]]; then printf "${__crt__txtgrn}%c${__crt__txtrst}" '.'
-            elif [[ "${code}" == "int"     ]]; then printf "${__crt__txtred}%c${__crt__txtrst}" '!'
+            if   [[ "${code}" == "int"     ]]; then printf "${__crt__txtred}%c${__crt__txtrst}" '!'
             elif [[ "${code}" == "skip"    ]]; then printf "${__crt__txtylw}%c${__crt__txtrst}" '-'
+            elif [[ "${code}" == "running" ]]; then printf "${__crt__txtblu}%c${__crt__txtrst}" '>'
+            elif [[ "${code}" == "0"       ]]; then printf '.'
             else                                    printf "${__crt__txtred}%c${__crt__txtrst}" 'X'
             fi
+        }
+
+        __crt__draw_summary() {
+            local percent=$(( ${#__crt__codes[@]} * 100 / __crt__task_count ))
+            local success="  ${__crt__success_task_count} passed"
+            local failure
+            local skipped
+            local interrupted
+            [[ "${__crt__failure_task_count}" -eq 0 ]] || failure="  ${__crt__failure_task_count} failed"
+            [[ "${__crt__skipped_task_count}" -eq 0 ]] || skipped="  ${__crt__skipped_task_count} skipped"
+            [[ "${__crt__interrupted_task_count}" -eq 0 ]] || interrupted="  ${__crt__interrupted_task_count} interrupted"
+            printf "  %3d%% %s%s%s%s" \
+                "${percent}" \
+                "${success}" \
+                "${failure}" \
+                "${skipped}" \
+                "${interrupted}"
         }
     else
         __crt__seconds_between_frames=1.0
@@ -779,6 +853,10 @@ concurrent() (
         __crt__move_cursor_below_tasks() {
             tput cud "${__crt__task_count}"
             tput sc
+        }
+
+        __crt__move_cursor_below_status() {
+            __crt__move_cursor_below_tasks
         }
 
         __crt__draw_initial_tasks() {
@@ -827,21 +905,24 @@ concurrent() (
                 (__crt__running_status_current_frame + 1) % ${#__crt__running_status_frames[@]}
             ))
         }
+
+        __crt__indent() {
+            sed 's/^/    /' "${@}"
+        }
+
+        __crt__print_failures() {
+            cd "${__crt__status_dir}"
+            local i
+            for (( i = 0; i < __crt__task_count; i++ )); do
+                if [[ "${__crt__codes[${i}]}" != '0' ]]; then
+                    printf "\n['%s' failed with exit status %s]\n" "${__crt__names[${i}]}" "${__crt__codes[${i}]}"
+                    __crt__indent "${i}"
+                fi
+            done
+        }
     fi
 
-    __crt__indent() {
-        sed 's/^/    /' "${@}"
-    }
-
-    __crt__print_failures() {
-        cd "${__crt__status_dir}"
-        local i
-        for (( i = 0; i < __crt__task_count; i++ )); do
-            if [[ "${__crt__codes[${i}]}" != '0' ]]; then
-                printf "\n['%s' failed with exit status %s]\n" "${__crt__names[${i}]}" "${__crt__codes[${i}]}"
-                __crt__indent "${i}"
-            fi
-        done
+    __crt__print_log_location() {
         if [[ "${__crt__final_status}" != "0" && "${CONCURRENT_DEPTH}" -eq 0 ]]; then
             printf '\nLogs for all tasks can be found in:\n    %s\n' "${CONCURRENT_LOG_DIR}/"
         fi
@@ -868,8 +949,9 @@ concurrent() (
 
     __crt__status_cleanup() {
         trap -- - INT  # no longer need special sigint handling
-        __crt__move_cursor_below_tasks
+        __crt__move_cursor_below_status
         __crt__print_failures
+        __crt__print_log_location
     }
 
     #
@@ -915,7 +997,7 @@ concurrent() (
         __crt__disable_echo              () { :; }
         __crt__draw_initial_tasks        () { :; }
         __crt__move_cursor_to_first_task () { :; }
-        __crt__move_cursor_below_tasks   () { :; }
+        __crt__move_cursor_below_status  () { :; }
         __crt__draw_status               () { :; }
         __crt__draw_meta                 () { :; }
         __crt__start_animation           () { :; }
