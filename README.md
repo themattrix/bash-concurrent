@@ -1,4 +1,4 @@
-# Concurrent ![version: 2.2.1](https://img.shields.io/badge/version-2.2.1-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
+# Concurrent ![version: 2.3.0](https://img.shields.io/badge/version-2.3.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -128,6 +128,29 @@ perform a dry-run to ensure that the tasks are ordered as expected. Set the
 `CONCURRENT_DRY_RUN` environment variable to perform a dry-run.
 
 
+## Forking Limit
+
+By default, `concurrent` allows up to 50 concurrently-running tasks.
+Set the `CONCURRENT_LIMIT` environment variable to override this limit.
+
+A neat trick is to set the limit to 1, essentially forcing a `--sequential`
+run, but with existing tasks between dependencies taken into account.
+
+A limit less than 1 is treated as no limit.
+
+
+## Compact Display
+
+If the number of tasks exceed the terminal height, the "compact display" will
+be activated. It can also be explicitly activated by setting the
+`CONCURRENT_COMPACT` environment variable to anything other than `0`.
+
+In this mode, each task is represented by a single character instead of an
+entire line. An execution summary is displayed below the tasks.
+
+[![asciicast](https://asciinema.org/a/37290.png)](https://asciinema.org/a/37290)
+
+
 ## Logging
 
 By default, logs for each task will be created in `./logs/<timestamp>/`.
@@ -174,6 +197,12 @@ To change this directory, set `CONCURRENT_LOG_DIR` before calling `concurrent`.
 
 ## Change Log
 
+- **2.3.0**
+  - *New:* Concurrency limit defaults to 50, unless overridden by `CONCURRENT_LIMIT`.
+  - *New:* If the number of tasks exceed the terminal height (or `CONCURRENT_COMPACT` is set), each task will be displayed as a single character instead of a taking up an entire line.
+  - *New:* Cursor now hidden while running.
+  - *Fix:* Greatly improved speed of event loop. Especially noticeable for large numbers of tasks.
+  - *Fix:* Namespaced `command_*` and `prereq_*` arrays so that they don't carry into the tasks.
 - **2.2.1**
   - *Fix:* Tasks not allowed to read from stdin.
 - **2.2.0**
