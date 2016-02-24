@@ -231,6 +231,10 @@ concurrent() (
         [[ "${CONCURRENT_LIMIT}" -lt 1 || "${__crt__running_task_count}" -lt "${CONCURRENT_LIMIT}" ]]
     }
 
+    __crt__clear_event_pipe() {
+        > "${__crt__event_pipe}"
+    }
+
     __crt__name_index() {
         local name=${1}
         local i
@@ -347,7 +351,7 @@ concurrent() (
 
     __crt__start_all_tasks() {
         __crt__draw_initial_tasks
-        __crt__move_cursor_to_first_task
+        __crt__move_cursor_to_top
         __crt__start_allowed_tasks
     }
 
@@ -758,15 +762,21 @@ concurrent() (
         __crt__print_failures  () { :; }
 
         __crt__draw_initial_tasks() {
-            local rows=$(( __crt__task_count / __crt__cols + 2 ))  # task lines + summary lines
+            # task lines + most recent update lines + summary lines
+            local rows=$(( __crt__task_count / __crt__cols + 4 ))
             local row
             for (( row = 0; row < rows; row++ )); do echo; done
-            [[ "${rows}" -eq 0 ]] || tput cuu "${rows}"
+            tput cuu "${rows}"
             tput sc
         }
 
-        __crt__move_cursor_to_first_task() {
+        __crt__move_cursor_to_top() {
             tput rc
+        }
+
+        __crt__move_cursor_to_first_task() {
+            __crt__move_cursor_to_top
+            tput cud 2
         }
 
         __crt__requires_newline_after_tasks() {
@@ -787,13 +797,15 @@ concurrent() (
         __crt__move_cursor_below_status() {
             __crt__move_cursor_below_tasks
             echo
-            echo
+            tput el
+            tput cuu 1
         }
 
         __crt__move_cursor_to_index() {
             local index=${1}
             local col=$(( index % __crt__cols ))
             local row=$(( index / __crt__cols ))
+            __crt__move_cursor_to_first_task
             [[ "${col}" -eq 0 ]] || tput cuf "${col}"
             [[ "${row}" -eq 0 ]] || tput cud "${row}"
         }
@@ -801,14 +813,13 @@ concurrent() (
         __crt__draw_status() {
             local index=${1}
             local code=${2}
-            __crt__move_cursor_to_first_task
+            __crt__move_cursor_to_top
+            __crt__draw_summary
             __crt__move_cursor_to_index "${index}"
             __crt__draw_task "${code}"
-            __crt__move_cursor_to_first_task
             __crt__move_cursor_below_tasks
-            echo
-            __crt__draw_summary
-            __crt__move_cursor_to_first_task
+            [[ "${code}" == "running" ]] || __crt__draw_recent_verbose_task "${index}" "${code}"
+            __crt__move_cursor_to_top
         }
 
         __crt__draw_task() {
@@ -821,16 +832,31 @@ concurrent() (
             fi
         }
 
+        __crt__draw_recent_verbose_task() {
+            local index=${1}
+            local code=${2}
+            local meta=${__crt__meta[${index}]}
+            if   [[ "${code}" == "int"     ]]; then printf "\n ${__crt__txtred}%s${__crt__txtrst} " 'SIGINT'
+            elif [[ "${code}" == "skip"    ]]; then printf "\n ${__crt__txtylw}%s${__crt__txtrst} " ' SKIP '
+            elif [[ "${code}" == "0"       ]]; then printf "\n ${__crt__txtgrn}%s${__crt__txtrst} " '  OK  '
+            else                                    printf "\n ${__crt__txtred}%s${__crt__txtrst} " 'FAILED'
+            fi
+            printf "%s" "${__crt__names[${index}]}"
+            if [[ -n "${meta}" ]]; then printf " ${__crt__txtbld}%s${__crt__txtrst}" "${meta}"
+            fi
+            tput el  # clear to the end of the line in case the task previously displayed was longer
+        }
+
         __crt__draw_summary() {
             local percent=$(( ${#__crt__codes[@]} * 100 / __crt__task_count ))
             local success="  ${__crt__success_task_count} passed"
             local failure
             local skipped
             local interrupted
-            [[ "${__crt__failure_task_count}" -eq 0 ]] || failure="  ${__crt__failure_task_count} failed"
-            [[ "${__crt__skipped_task_count}" -eq 0 ]] || skipped="  ${__crt__skipped_task_count} skipped"
+            [[ "${__crt__failure_task_count}"     -eq 0 ]] || failure="  ${__crt__failure_task_count} failed"
+            [[ "${__crt__skipped_task_count}"     -eq 0 ]] || skipped="  ${__crt__skipped_task_count} skipped"
             [[ "${__crt__interrupted_task_count}" -eq 0 ]] || interrupted="  ${__crt__interrupted_task_count} interrupted"
-            printf "  %3d%% %s%s%s%s" \
+            printf " %3d%% %s%s%s%s\n\n" \
                 "${percent}" \
                 "${success}" \
                 "${failure}" \
@@ -845,7 +871,7 @@ concurrent() (
             " ${__crt__txtblu}     >${__crt__txtrst} "
         )
 
-        __crt__move_cursor_to_first_task() {
+        __crt__move_cursor_to_top() {
             tput cuu "${__crt__task_count}"
             tput sc
         }
@@ -866,18 +892,28 @@ concurrent() (
             done
         }
 
+        __crt__move_cursor_to_index() {
+            local index=${1}
+            [[ "${index}" -eq 0 ]] || tput cud "${index}"
+        }
+
         __crt__draw_status() {
             local index=${1}
             local code=${2}
             tput rc
-            [[ "${index}" -eq 0 ]] || tput cud "${index}"
+            __crt__move_cursor_to_index "${index}"
+            __crt__draw_task "${code}"
+            tput rc
+        }
+
+        __crt__draw_task() {
+            local code=${1}
             if   [[ "${code}" == "running" ]]; then __crt__draw_running_status
             elif [[ "${code}" == "int"     ]]; then printf " ${__crt__txtred}%s${__crt__txtrst} " 'SIGINT'
             elif [[ "${code}" == "skip"    ]]; then printf " ${__crt__txtylw}%s${__crt__txtrst} " ' SKIP '
             elif [[ "${code}" == "0"       ]]; then printf " ${__crt__txtgrn}%s${__crt__txtrst} " '  OK  '
             else                                    printf " ${__crt__txtred}%s${__crt__txtrst} " 'FAILED'
             fi
-            tput rc
         }
 
         __crt__draw_running_status() {
@@ -888,7 +924,7 @@ concurrent() (
         __crt__draw_meta() {
             local index=${1}
             tput rc
-            [[ "${index}" -eq 0 ]] || tput cud "${index}"
+            __crt__move_cursor_to_index "${index}"
             tput cuf 8  # move past status
             printf "%s ${__crt__txtbld}%s${__crt__txtrst}" "${__crt__names[${index}]}" "${__crt__meta[${index}]}"
             tput rc
@@ -977,6 +1013,7 @@ concurrent() (
     __crt__handle_sigint() {
         CONCURRENT_LIMIT=-1
         __crt__interrupted=1
+        __crt__clear_event_pipe
         __crt__cleanup_event_loop
         __crt__mark_all_running_tasks_as_interrupted
         __crt__run_event_loop
@@ -996,7 +1033,7 @@ concurrent() (
         __crt__enable_echo               () { :; }
         __crt__disable_echo              () { :; }
         __crt__draw_initial_tasks        () { :; }
-        __crt__move_cursor_to_first_task () { :; }
+        __crt__move_cursor_to_top        () { :; }
         __crt__move_cursor_below_status  () { :; }
         __crt__draw_status               () { :; }
         __crt__draw_meta                 () { :; }
@@ -1010,7 +1047,7 @@ concurrent() (
     __crt__disable_echo || __crt__error 'Must be run in the foreground of an interactive shell!'
     __crt__status_dir=$(mktemp -d "${TMPDIR:-/tmp}/concurrent.lib.sh.XXXXXXXXXXX")
     __crt__event_pipe="${__crt__status_dir}/event-pipe"
-    > "${__crt__event_pipe}"
+    __crt__clear_event_pipe
 
     trap -- __crt__handle_exit EXIT
     trap -- __crt__handle_sigint INT
