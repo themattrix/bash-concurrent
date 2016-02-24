@@ -148,6 +148,8 @@ be activated. It can also be explicitly activated by setting the
 In this mode, each task is represented by a single character instead of an
 entire line. An execution summary is displayed below the tasks.
 
+[![asciicast](https://asciinema.org/a/37290.png)](https://asciinema.org/a/37290)
+
 
 ## Logging
 
