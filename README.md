@@ -1,4 +1,4 @@
-# Concurrent ![version: 2.3.0](https://img.shields.io/badge/version-2.3.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
+# Concurrent ![version: 2.3.1](https://img.shields.io/badge/version-2.3.1-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -197,6 +197,8 @@ To change this directory, set `CONCURRENT_LOG_DIR` before calling `concurrent`.
 
 ## Change Log
 
+- **2.3.1**
+  - *Fix*: Now clearing to end of line when printing extra status info after a task (credit: @fragmede).
 - **2.3.0**
   - *New:* Concurrency limit defaults to 50, unless overridden by `CONCURRENT_LIMIT`.
   - *New:* If the number of tasks exceed the terminal height (or `CONCURRENT_COMPACT` is set), each task will be displayed as a single character instead of a taking up an entire line.
