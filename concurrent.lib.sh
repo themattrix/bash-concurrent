@@ -746,6 +746,7 @@ concurrent() (
     __crt__txtblu='\e[0;34m' # Blue
     __crt__txtbld='\e[1m'    # Bold
     __crt__txtrst='\e[0m'    # Text Reset
+    __crt__txtclr='\e[0K'    # Clear to end of line
 
     export CONCURRENT_COMPACT=${CONCURRENT_COMPACT:-0}
 
@@ -926,7 +927,7 @@ concurrent() (
             tput rc
             __crt__move_cursor_to_index "${index}"
             tput cuf 8  # move past status
-            printf "%s ${__crt__txtbld}%s${__crt__txtrst}" "${__crt__names[${index}]}" "${__crt__meta[${index}]}"
+            printf "%s ${__crt__txtbld}%s${__crt__txtrst}${__crt__txtclr}" "${__crt__names[${index}]}" "${__crt__meta[${index}]}"
             tput rc
         }
 
