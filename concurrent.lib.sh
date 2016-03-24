@@ -315,6 +315,7 @@ concurrent() (
             while read -r meta; do
                 printf "meta:%d:%s\n" "${1}" "${meta}" >> "${4}"
             done
+            exit "${PIPESTATUS[0]}"
         )
         code=$?
         set -o errexit  # ...but other failures should
