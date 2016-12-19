@@ -197,6 +197,8 @@ To change this directory, set `CONCURRENT_LOG_DIR` before calling `concurrent`.
 
 ## Change Log
 
+- **2.3.3**
+  - *Fix:* Cursor no longer hidden when running nested.
 - **2.3.2**
   - *Fix:* Failing tasks with no output now exit with the correct status (credit: @uluyol).
 - **2.3.1**

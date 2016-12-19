@@ -30,7 +30,7 @@ concurrent() (
     # Help and Usage
     #
 
-    __crt__help__version='concurrent 2.3.2'
+    __crt__help__version='concurrent 2.3.3'
 
     __crt__help__usage="concurrent - Run tasks in parallel and display pretty output as they complete.
 
@@ -1041,6 +1041,8 @@ concurrent() (
         __crt__draw_meta                 () { :; }
         __crt__start_animation           () { :; }
         __crt__stop_animation            () { :; }
+        __crt__hide_cursor               () { :; }
+        __crt__show_cursor               () { :; }
     fi
 
     export CONCURRENT_LOG_DIR=${CONCURRENT_LOG_DIR:-${PWD}/.logs/$(date +'%F@%T')}
