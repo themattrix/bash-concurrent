@@ -1,4 +1,4 @@
-# Concurrent ![version: 2.3.3](https://img.shields.io/badge/version-2.3.3-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
+# Concurrent ![version: 2.4.0](https://img.shields.io/badge/version-2.4.0-green.svg?style=flat-square) ![language: bash](https://img.shields.io/badge/language-bash-blue.svg?style=flat-square) ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) [![Travis](https://img.shields.io/travis/themattrix/bash-concurrent.svg?style=flat-square)](https://travis-ci.org/themattrix/bash-concurrent)
 
 A Bash function to run tasks in parallel and display pretty output as they complete.
 
@@ -146,9 +146,19 @@ be activated. It can also be explicitly activated by setting the
 `CONCURRENT_COMPACT` environment variable to anything other than `0`.
 
 In this mode, each task is represented by a single character instead of an
-entire line. An execution summary is displayed below the tasks.
+entire line. An execution summary is displayed above the tasks.
 
 [![asciicast](https://asciinema.org/a/37290.png)](https://asciinema.org/a/37290)
+
+
+## Non-Interactive Mode
+
+If the output is not attached to a tty, the "non-interactive" mode will be
+activated. It can also be explicitly activated by setting the
+`CONCURRENT_NONINTERACTIVE` environment variable to anything other than `0`.
+
+In this mode, each task is displayed as soon as it completes. Colors are
+also disabled.
 
 
 ## Logging
@@ -197,6 +207,8 @@ To change this directory, set `CONCURRENT_LOG_DIR` before calling `concurrent`.
 
 ## Change Log
 
+- **2.4.0**
+  - *New:* Gracefully switches to non-interactive mode when a tty is not present or if `CONCURRENT_NONINTERACTIVE` is non-zero.
 - **2.3.3**
   - *Fix:* Cursor no longer hidden when running nested.
 - **2.3.2**
