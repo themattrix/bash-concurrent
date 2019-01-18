@@ -22,8 +22,8 @@ concurrent() (
     # Compatibility Check
     #
 
-    if [[ -z "${BASH_VERSINFO[@]}" || "${BASH_VERSINFO[0]}" -lt 4 || "${BASH_VERSINFO[1]}" -lt 2 ]]; then
-        __crt__error "Requires Bash version 4.2 for 'declare -g' (you have ${BASH_VERSION:-a different shell})"
+    if ! declare -g >/dev/null 2>&1; then
+        __crt__error "Requires at least Bash version 4.2 for 'declare -g' (you have ${BASH_VERSION:-a different shell})"
     fi
 
     #
